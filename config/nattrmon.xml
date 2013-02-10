@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nattrmon>
+ <!-- SETTING -->
+ <settings log="INFO">
+  <include type="service" path="com.nattrmon.services.random.RandomService"/>
+  <include type="service" path="com.nattrmon.services.shell.ShellService"/>
+   
+  <include type="output" path="com.nattrmon.output.order.OrderFormat"/>
+ </settings>
+ 
+ <!-- SERVICES -->
+ <services>
+  <service url="random://1">
+   <object name="random1">
+    <attribute uid="ATR_RANDOM" name="random"/>
+   </object>
+  </service>
+ </services>
+ 
+ <outputs>
+  <output type="orderOutput">
+   ATR_RANDOM
+  </output>
+ </outputs>
+</nattrmon>
