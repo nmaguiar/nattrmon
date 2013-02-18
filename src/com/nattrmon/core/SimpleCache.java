@@ -38,7 +38,7 @@ public class SimpleCache {
 		this.conf = conf;
 	}
 	
-	public int getNumberOfCurrentCachedObjects() {
+	public synchronized int getNumberOfCurrentCachedObjects() {
 		return cache.size();
 	}
 	
@@ -48,7 +48,7 @@ public class SimpleCache {
 	 * @param key The cache key
 	 * @return True if it's valid. False otherwise.
 	 */
-	protected boolean stillYoungEnough(String key) {
+	protected synchronized boolean stillYoungEnough(String key) {
 		if (cacheAge.containsKey(key)) {
 			if (cacheLimitAge.containsKey(key)) {
 				if (cacheLimitAge.get(key).longValue() - ( conf.getCurrentCounter() - ((Long) (cacheAge.get(key))).longValue() ) <= 0 ) {
@@ -77,7 +77,7 @@ public class SimpleCache {
 	 * @param key The key to reference the object to be added to cache
 	 * @param obj The object to be cached (should be extended from CacheableObject)
 	 */
-	public void addObjectToCache(String key, CacheableObject obj) {
+	public synchronized void addObjectToCache(String key, CacheableObject obj) {
 		cache.put(key, obj);
 		cacheAge.put(key, conf.getCurrentCounter());
 	}
@@ -89,12 +89,12 @@ public class SimpleCache {
 	 * @param obj
 	 * @param timeLimit This limit is defined in number of counter cycles
 	 */
-	public void addObjectToCacheWithTimeLimit(String key, CacheableObject obj, long timeLimit) {
+	public synchronized void addObjectToCacheWithTimeLimit(String key, CacheableObject obj, long timeLimit) {
 		addObjectToCache(key, obj);
 		cacheLimitAge.put(key, new Long(timeLimit));
 	}
 	
-	public boolean isObjectStillValid(String key) {
+	public synchronized boolean isObjectStillValid(String key) {
 		boolean stillValid = false;
 		if (cache.containsKey(key)) {
 			if (stillYoungEnough(key)) {
@@ -107,7 +107,7 @@ public class SimpleCache {
 		return stillValid;
 	}
 	
-	public void invalidateObject(String key) {
+	public synchronized void invalidateObject(String key) {
 		cache.remove(key);
 		cacheAge.remove(key);
 		if (cacheLimitAge.containsKey(key)) {
@@ -115,7 +115,7 @@ public class SimpleCache {
 		}
 	}
 	
-	public CacheableObject getCachedObject(String key) {
+	public synchronized CacheableObject getCachedObject(String key) {
 		if (isObjectStillValid(key)) {
 			return cache.get(key);
 		} else {

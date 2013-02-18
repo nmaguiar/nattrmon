@@ -58,7 +58,7 @@ public class JMXService extends Service {
 		return new JMXObject(conf, this, name, params);
 	}
 
-	public void connect() {
+	public synchronized void connect() {
 		if (jmxCons.containsKey(this.serviceUrl + params)) {
 			jmxCon = jmxCons.get(this.serviceUrl + params);
 		}
@@ -134,7 +134,7 @@ public class JMXService extends Service {
 		return jmxCon;
 	}
 
-	public void setJmxCon(JMXConnector jmxCon) {
+	public synchronized void setJmxCon(JMXConnector jmxCon) {
 		this.jmxCon = jmxCon;
 	}
 
@@ -142,7 +142,7 @@ public class JMXService extends Service {
 		return mbeanCon;
 	}
 
-	public void setMbeanCon(MBeanServerConnection mbeanCon) {
+	public synchronized void setMbeanCon(MBeanServerConnection mbeanCon) {
 		this.mbeanCon = mbeanCon;
 	}
 

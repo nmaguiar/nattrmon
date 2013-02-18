@@ -27,11 +27,11 @@ public class CacheableCommandOutput extends CacheableObject {
 		setOutput(output);
 	}
 	
-	public String getOutput() {
+	public synchronized String getOutput() {
 		return output;
 	}
 
-	public void setOutput(String output) {
+	public synchronized void setOutput(String output) {
 		this.output = output;
 	}
 	

@@ -107,7 +107,7 @@ public class DBService extends Service {
 	 * @param login The database login
 	 * @param password The database password
 	 */
-	public void connect(String JDBCDriverClass, String url, Properties prop) {
+	public synchronized void connect(String JDBCDriverClass, String url, Properties prop) {
 		if (dbCons.containsKey(url + params)) {
 			dbCon = dbCons.get(url + params);
 			try {

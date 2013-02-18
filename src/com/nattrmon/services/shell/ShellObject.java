@@ -76,7 +76,7 @@ public class ShellObject extends Object {
 			}
 	}
 
-	protected void runCommand() {
+	protected synchronized void runCommand() {
 		try {
 			Process p = Runtime.getRuntime().exec(getName());
 			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
@@ -86,12 +86,7 @@ public class ShellObject extends Object {
 				sb.append("\n");
 			}
 			output = sb.toString();
-			/*String outline = br.readLine();
-			output = "";
-			while(outline != null) {
-				output += outline + "\n";
-				outline = br.readLine();
-			}*/
+
 			conf.getCache().addObjectToCacheWithTimeLimit(cacheKey, new CacheableCommandOutput(output), 1);
 		} catch (IOException e) {
 			conf.lOG(OutputType.ERROR, "Error executing command: '" + getName() + "'");
@@ -132,36 +127,7 @@ public class ShellObject extends Object {
 				
 					output = sb.toString();
 				}
-				
-				/*output = ""; int iii = 1;
-				String tmp = br.readLine();
-				while((tmp != null) && (!(channel.isClosed()))) {
-					output += tmp + "\n";
-					tmp = br.readLine();
-					iii++;
-					//try{Thread.sleep(1000);} catch(Exception ee){}
-				}
-				System.out.println(iii + " | " + channel.isEOF());*/
-				/*
-				byte[] tmp = new byte[1024];
-				output = ""; int ii = -1;
-				while (true) {
-					while (in.available() > 0 ) {
-						i = in.read(tmp, 0, 1024);
-						if (i < 0) {
-							break;
-						} else {
-							output += (new String(tmp, 0, i));
-						}
-						ii = i;
-					}
-					if (channel.isClosed()) {
-						System.out.println("VAI1: " + channel.);
-						System.out.println("VAI2: " + ii);
-						break;
-					}
-					//try{Thread.sleep(1000);}catch(Exception ee){}
-				}*/
+
 				br.close();
 				channel.disconnect();
 			} catch (IOException e) {
@@ -172,7 +138,7 @@ public class ShellObject extends Object {
 		}
 	}
 
-	public String getOutput(boolean force) {
+	public synchronized String getOutput(boolean force) {
 		output = null;
 		
 		if (conf.getCache().isObjectStillValid(cacheKey)) {

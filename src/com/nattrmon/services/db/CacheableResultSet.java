@@ -27,11 +27,11 @@ public class CacheableResultSet extends CacheableObject {
 		setRs(offlineResultSet);
 	}
 	
-	public OfflineResultSet getRs() {
+	public synchronized OfflineResultSet getRs() {
 		return rs;
 	}
 
-	public void setRs(OfflineResultSet rs) {
+	public synchronized void setRs(OfflineResultSet rs) {
 		this.rs = rs;
 	}
 
