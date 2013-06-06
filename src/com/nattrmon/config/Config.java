@@ -21,6 +21,7 @@ package com.nattrmon.config;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import com.nattrmon.collector.CollectorOutput;
 import com.nattrmon.core.OutputFormat;
 import com.nattrmon.core.Service;
 import com.nattrmon.core.SimpleCache;
@@ -46,7 +47,22 @@ public class Config {
 	protected static HashMap<String, String> registeredFormats = new HashMap<String, String>();
 	protected SimpleCache cache = new SimpleCache(this);
 	protected long timeInterval = 1000;
-	
+	protected String collector = "timer";  // Default to timer if no collector specified
+
+	/**
+	 * Get the current collector
+	 */
+	public String getCollector() {
+		return collector;
+	}
+
+	/**
+	 * Set the current collector
+	 */
+	public void setCollector(String collector) {
+		this.collector = collector;
+	}
+
 	protected ArrayList<Service> services = new ArrayList<Service>(); // The services configured
 	protected ArrayList<OutputFormat> outputformats = new ArrayList<OutputFormat>(); // The outputs configured
 	
