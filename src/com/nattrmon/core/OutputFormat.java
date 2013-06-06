@@ -41,6 +41,7 @@ public abstract class OutputFormat {
 	protected static boolean refreshValues = true;
 	protected boolean determineParallelFill = true;
 	protected boolean useParallelFill = false;
+	protected boolean processOutput = true;
     
 	public String getText() {
 		return text;
@@ -84,11 +85,28 @@ public abstract class OutputFormat {
 	 */
 	public void output() {
 		preOutput();
-		//if (inFill) processOutput();
-		processOutput();
-		posOutput();
+		//if (processOutput) {
+			processOutput();
+			posOutput();
+		//}
+		//processOutput();
 	}
 	
+	/**
+	 * Is the processing of the output enabled or just
+	 * pre-output?
+	 */
+	public boolean isProcessOutput() {
+		return processOutput;
+	}
+
+	/**
+	 * Set if the processing of the output shoud be performed or not
+	 */
+	public void setProcessOutput(boolean inFill) {
+		this.processOutput = inFill;
+	}
+
 	/**
 	 * To be called before actually performing the output
 	 * 
@@ -230,6 +248,40 @@ public abstract class OutputFormat {
 		}
 		
 		refreshValues = false;
+	}
+	
+	/**
+	 * Determine if attribute values are equal from the last counter
+	 */
+	public boolean isAttributeValuesEqualToLastRun() {
+		UniqueAttributes ua = conf.getUniqueAttrs();
+		Attribute atr = null;
+		long counter = conf.getCurrentCounter();
+		
+		if (isFirstTime() || counter < 1) return false;
+
+		if (!(conf.getCurrentAttributeValues4Counter(counter).equals(conf.getCurrentAttributeValues4Counter(counter -1)))) {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	/**
+	 * Given an attribute name determine if an attribute value is equal to the value on the last counter 
+	 */
+	public boolean isAttributeValueEqualToLastRun(String attrName) {
+		UniqueAttributes ua = conf.getUniqueAttrs();
+		Attribute atr = null;
+		long counter = conf.getCurrentCounter();
+		
+		if (isFirstTime() || counter < 1) return false;
+
+		if(!(conf.getCurrentAttributeValues(counter, attrName).equals(conf.getCurrentAttributeValues(counter - 1, attrName)))) {
+			return false;
+		}
+		
+		return true;		
 	}
 	
 	/**
