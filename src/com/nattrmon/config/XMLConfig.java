@@ -59,6 +59,7 @@ public class XMLConfig {
 		
 		    d.addObjectCreate("nattrmon/settings", XMLSettings.class);
 		    d.addSetProperties("nattrmon/settings", "log", "log");
+		    d.addSetProperties("nattrmon/settings", "collector", "collector");
 		    	d.addObjectCreate("nattrmon/settings/include", XMLInclude.class);
 		    	d.addSetProperties("nattrmon/settings/include", "type", "type");
 		    	d.addSetProperties("nattrmon/settings/include", "path", "path");
