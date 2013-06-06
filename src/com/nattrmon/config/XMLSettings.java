@@ -49,5 +49,15 @@ public class XMLSettings {
 	public String getLog() {
 		return conf.getDefaultType().toString();
 	}
+	
+	public void setCollector(String collect) {
+		if (collect.equalsIgnoreCase("EVENT")) conf.setCollector("event");
+		if (collect.equalsIgnoreCase("TIMER")) conf.setCollector("timer");
+	}
+	
+	public String getCollector() {
+		return conf.getCollector();
+	}
 
 }
+ 
