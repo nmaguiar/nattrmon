@@ -22,6 +22,7 @@ package com.nattrmon;
 import java.io.File;
 
 import com.nattrmon.collector.CollectorOutput;
+import com.nattrmon.collector.EventCollectorOutput;
 import com.nattrmon.collector.TimerCollectorOutput;
 import com.nattrmon.config.Config;
 import com.nattrmon.config.XMLConfig;
@@ -153,7 +154,15 @@ public class NAttrMon {
 			co.setTimeInterval(timeInterval);
 		}
 		
-		new NAttrMon(new TimerCollectorOutput(co, count));
+		// Choose a collector output
+		CollectorOutput collect;
+		if (co.getCollector().equals("event")) {
+			collect = new EventCollectorOutput(co, count);
+		} else {
+			collect = new TimerCollectorOutput(co, count);
+		}
+		
+		new NAttrMon(collect);
 	}
 
 	public Config getConf() {
