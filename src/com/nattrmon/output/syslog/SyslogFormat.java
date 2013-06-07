@@ -131,12 +131,12 @@ public class SyslogFormat extends OutputFormat {
 		String suffix = "";
 		long counter = conf.getCurrentCounter();
 		for(String attrName :attrNames) {
-			if (attrNames.indexOf(attrName) == (attrNames.size() - 1)) suffix = ";";
+			//if (attrNames.indexOf(attrName) == (attrNames.size() - 1)) suffix = ";";
 			
 			if (conf.containsCurrentAttributeValues(counter, attrName)) {
 				if (!(this.isAttributeValueEqualToLastRun(attrName))) {
 					if (debug.equals("no")) 
-						writeLog("[" + counter + "] " + attrName + "=" + conf.getCurrentAttributeValues(counter, attrName) + suffix);
+						writeLog("[" + counter + "] " + attrName + "=" + conf.getCurrentAttributeValues(counter, attrName));
 					else
 						conf.lOG(OutputType.INFO, "[" + counter + "] " + attrName + "=" + conf.getCurrentAttributeValues(counter, attrName) + suffix);
 					
