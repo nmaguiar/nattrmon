@@ -26,9 +26,6 @@ import org.mozilla.javascript.ScriptableObject;
 
 import sun.org.mozilla.javascript.internal.Context;
 
-import bsh.EvalError;
-import bsh.Interpreter;
-
 import com.nattrmon.config.Config;
 import com.nattrmon.core.Attribute;
 import com.nattrmon.core.Attribute.AttributeType;
