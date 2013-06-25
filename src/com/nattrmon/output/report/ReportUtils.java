@@ -21,11 +21,7 @@ package com.nattrmon.output.report;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
-
-import oracle.sql.DATE;
-
 import com.nattrmon.config.Config;
-import com.nattrmon.core.OutputFormat;
 
 public class ReportUtils {
 
