@@ -26,12 +26,12 @@ import javax.management.ReflectionException;
 
 import com.nattrmon.core.OutputFormat;
 
-import bsh.EvalError;
-import bsh.Interpreter;
+//import bsh.EvalError;
+//import bsh.Interpreter;
 
 public class DynaBeanShellMXBean extends DynaMXBean {
 	protected HashMap<String, String> bsScripts;
-	protected Interpreter interpreter = new Interpreter();
+	//protected Interpreter interpreter = new Interpreter();
 	
 	public DynaBeanShellMXBean(HashMap<String, String> scripts) {
 		super();
@@ -45,12 +45,12 @@ public class DynaBeanShellMXBean extends DynaMXBean {
 	
 	public Object getAttribute(String attrName) throws AttributeNotFoundException  {
 		if (bsScripts.containsKey(attrName)) {
-			try {
+			/*try {
 				return interpreter.eval(bsScripts.get(attrName));
 			} catch (EvalError e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			} 
+			} */
 		}
 		
 		return OutputFormat.NOT_AVAILABLE;
