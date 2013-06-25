@@ -18,12 +18,14 @@
  */
 package com.nattrmon.core;
 
+import java.lang.Thread.State;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
 import com.nattrmon.config.Config;
 import com.nattrmon.output.Output.OutputType;
+import com.sun.jmx.snmp.tasks.ThreadService;
 
 /**
  * Abstract class for implementing OutputFormat classes.
@@ -32,7 +34,10 @@ import com.nattrmon.output.Output.OutputType;
  * @author Nuno Aguiar <nuno@aguiar.name>
  *
  */
-public abstract class OutputFormat {
+public class OutputFormat {
+	final static public String NOT_AVAILABLE = "n/a";
+	final static public String TIME_OUT = "t/o";
+	final static public String NOT_RETRIEVED = "n/r";
 	protected Config conf;
 	protected String text;
 	protected String param;
@@ -42,7 +47,9 @@ public abstract class OutputFormat {
 	protected boolean determineParallelFill = true;
 	protected boolean useParallelFill = false;
 	protected boolean processOutput = true;
-    
+	protected static int countThreads = 0;
+	protected static HashMap<String, Thread> threads = new HashMap<String, Thread>();
+	
 	public String getText() {
 		return text;
 	}
@@ -127,7 +134,9 @@ public abstract class OutputFormat {
 	 * should implement this method.
 	 * 
 	 */
-	public abstract void processOutput();
+	public void processOutput() {
+		
+	}
 	
 	public synchronized void posOutput() {
 		if (firstTime) firstTime = false;
@@ -165,12 +174,18 @@ public abstract class OutputFormat {
 		String orderText = getText();
 		
 		if (orderText != null) {		
-			orderText = orderText.replaceAll(" ", "");
+			orderText = orderText.replaceAll("[ \n\r\t]", "");
 			orderText = orderText.trim();
-			return new ArrayList<String>(Arrays.asList(orderText.split(",")));
+			
+			ArrayList<String> res = new ArrayList<String>(Arrays.asList(orderText.split(",")));
+			if (res.contains(null) || res.contains("")) {
+				conf.lOG(OutputType.ERROR, "Bad attribute on list for output '" + this.text + "'");
+			} else {
+				return new ArrayList<String>(Arrays.asList(orderText.split(",")));
+			}
 		}
 		
-		return null;
+		return new ArrayList<String>();
 	}
 	
 	/**
@@ -284,6 +299,22 @@ public abstract class OutputFormat {
 		return true;		
 	}
 	
+	public synchronized  void incCount() {
+		countThreads++;
+	}
+	
+	public synchronized void decCount() {
+		countThreads--;
+	}
+	
+	public synchronized void zeroCount() {
+		countThreads = 0;
+	}
+	
+	public synchronized int getCount() {
+		return countThreads;
+	}
+	
 	/**
 	 * Fill all unique attributes with values in parallel processing.
 	 * 
@@ -291,27 +322,60 @@ public abstract class OutputFormat {
 	public void parallelFillAttributeValues() {
 		final UniqueAttributes ua = conf.getUniqueAttrs();
 		Attribute atr = null;
-		ArrayList<Thread> threads = new ArrayList<Thread>();
 		ArrayList<String> lastToRun = new ArrayList<String>();
-		final long counter = conf.getCurrentCounter();
+		long counter = conf.getCurrentCounter();
 		
 		class ValueThread extends Thread {
 			protected Attribute a;
+			protected java.lang.Object lock = new java.lang.Object();
 			
 			public ValueThread(String atr) {
 				a = ua.getAttribute(atr);
+				setName(atr);
 			}
 			
 			public void run() {
-				if (a != null) setResult(a.getValue());
+				boolean shouldRun = false;
+				
+				synchronized (threads) {
+					if (threads.containsKey(a.getUniqueName())) {
+						shouldRun = false;
+					} else {
+						threads.put(a.getUniqueName(), this);
+						shouldRun = true;
+					}
+				}
+				
+				while (shouldRun && threads.containsKey(a.getUniqueName())) {
+					synchronized (lock) {
+						try {
+							lock.wait();
+						} catch (InterruptedException e) {
+						}
+						long start = System.currentTimeMillis();
+
+						if (a != null) {
+							conf.lOG(OutputType.DEBUG, "Thread processing attribute: " + a.getUniqueName());
+							setResult(OutputFormat.TIME_OUT); // Be sure is initialized in case of a timeout;
+							setResult(a.getValue());
+						}
+						conf.lOG(
+								OutputType.DEBUG,
+								"Thread processing attribute "
+										+ a.getUniqueName() + " took "
+										+ (System.currentTimeMillis() - start)
+										+ " to run.");
+						decCount();
+					}
+				}
 			}
 			
 			public synchronized void setResult(String r) {
-				conf.lOG(OutputType.DEBUG, "Thread processing attribute: " + a.getUniqueName());
-				conf.setCurrentAttributeValues(counter, a.getUniqueName(), r);
+				conf.setCurrentAttributeValues(conf.getCurrentCounter(), a.getUniqueName(), r);
 			}
 		}
 		
+		zeroCount();
 		// First group of attributes (non internal)
 		for(String attr :getAttrNames()) {
 			if (!(conf.containsCurrentAttributeValues(counter, attr)) || (refreshValues)) {
@@ -320,21 +384,58 @@ public abstract class OutputFormat {
 							if (ua.getAttribute(attr).isInternal) {
 								lastToRun.add(attr);
 							} else {
-								{Thread t = new ValueThread(attr);
-								threads.add(t);
-								t.start();}						
+								incCount();
+								synchronized (threads) {
+									conf.setCurrentAttributeValues(counter, attr, OutputFormat.NOT_RETRIEVED);
+									if (threads.containsKey(attr)) {
+										
+									} else {
+										Thread t = new ValueThread(attr);
+										//if (threads.size() > 10) threadWait(threads);
+										t.setPriority(Thread.MAX_PRIORITY-3);
+										//t.setDaemon(true);
+										t.start();
+										//threads.put(attr, t);
+									}
+								}
 							}
 				}
 			}
 		}
 		
-		// Wait for everyone to finish
-		for(Thread t : threads) {
-			if (t.isAlive()) 
-				try {
-					t.join();
-				} catch (InterruptedException e) {
+		// Signal for everyone to run	
+		synchronized (threads) {
+			for(Thread t : threads.values()) {
+				if (t.getState().equals(State.WAITING)) {
+					t.setPriority(Thread.MAX_PRIORITY-3);
+					t.interrupt();
 				}
+			}
+		}
+		
+		long timeInWaitingLimit = conf.getTimeInterval() * 5;
+		long timeInWaiting = System.currentTimeMillis();
+		long actualInWaiting = 0;
+		
+		while((getCount() > 0) && 
+			  (actualInWaiting < timeInWaitingLimit)) {
+			try {
+				actualInWaiting = System.currentTimeMillis() - timeInWaiting;
+				this.wait(500);
+			} catch (InterruptedException e) {
+			}
+		}
+		
+		synchronized (threads) {
+			for(Thread t : threads.values()) {
+				if (t.getState().equals(State.WAITING)) {
+					t.setPriority(Thread.MIN_PRIORITY);
+				}
+			}
+		}
+		
+		if (actualInWaiting >= timeInWaitingLimit) {
+			conf.lOG(OutputType.DEBUG, "Time out waiting for attribute threads (" + timeInWaitingLimit + "ms)");
 		}
 		
 		// Run internal, if necessary, in sequential fashion

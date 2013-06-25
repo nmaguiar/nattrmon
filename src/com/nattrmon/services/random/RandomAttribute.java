@@ -63,6 +63,7 @@ public class RandomAttribute extends Attribute {
 	 */
 	public RandomAttribute(Config conf, com.nattrmon.core.Object parentObj, String uniqueName, String value) throws ExceptionDuplicatedUniqueAttribute {
 		super(conf, parentObj, uniqueName, "random", AttributeType.Simple, value);
+		//setHeavy(true); // for testing
 	}
 	
 	/**

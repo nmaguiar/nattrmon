@@ -16,23 +16,33 @@
  *     specific language governing permissions and limitations
  *     under the License.
  */
-package com.nattrmon.services.beanshell;
+package com.nattrmon.output.report.httpd;
 
-import com.nattrmon.config.Config;
-import com.nattrmon.core.Attribute;
-import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
-import com.nattrmon.core.Object;
+import java.io.ByteArrayInputStream;
+import java.util.Properties;
 
-public class BeanshellAttribute extends Attribute {
+import com.nwu.httpd.Codes;
+import com.nwu.httpd.HTTPd;
+import com.nwu.httpd.Request;
+import com.nwu.httpd.responses.Response;
 
-	public BeanshellAttribute(Config conf, Object parentObject,
-			String uniqueName, String name, AttributeType type, String value)
-			throws ExceptionDuplicatedUniqueAttribute {
-		super(conf, parentObject, uniqueName, name, type, value);
+	public class SimpleResponse extends Response {
+		protected String id = "";
+		
+		public SimpleResponse(HTTPd httpd, String rUri, Properties props) {
+			super(httpd, rUri);
+			if (props != null)
+				id = props.getProperty("id");
+		}
+
+		@Override
+		public void execute(Request request) {	
+			String out = HTTPDFormat.currentHTMLs.get(id);
+			this.status = Codes.HTTP_OK;
+			this.mimeType = Codes.MIME_HTML;
+			if (out != null)
+				this.data = new ByteArrayInputStream( out.toString().getBytes());
+
+		}
+
 	}
-
-	@Override
-	public String getValue() {
-		return ((BeanshellObject) parentObject).getShellVariable(name);
-	}
-}

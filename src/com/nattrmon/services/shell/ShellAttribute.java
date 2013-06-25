@@ -25,6 +25,7 @@ import com.nattrmon.config.Config;
 import com.nattrmon.core.Attribute;
 import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
 import com.nattrmon.core.Object;
+import com.nattrmon.core.OutputFormat;
 import com.nattrmon.core.Service;
 import com.nattrmon.output.Output.OutputType;
 
@@ -70,7 +71,7 @@ public class ShellAttribute extends Attribute {
 			}
 		}
 
-		return "n/a";
+		return OutputFormat.NOT_AVAILABLE;
 
 	}
 

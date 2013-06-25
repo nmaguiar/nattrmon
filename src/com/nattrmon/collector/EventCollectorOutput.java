@@ -18,8 +18,12 @@
  */
 package com.nattrmon.collector;
 
+import java.util.HashMap;
+
+import com.nattrmon.collector.TimerCollectorOutput.TimerOutputTask.OutputThread;
 import com.nattrmon.config.Config;
 import com.nattrmon.core.OutputFormat;
+import com.nattrmon.output.Output.OutputType;
 
 /**
  * Event controller based output.
@@ -34,29 +38,128 @@ public class EventCollectorOutput implements CollectorOutput {
 	protected Config conf;
 	protected long internalCount = -1;
 	protected long timeInterval = -1;
+	protected HashMap<OutputFormat, OutputThread> threads = new HashMap<OutputFormat, OutputThread>();
+	protected int currentCount = 0;
+	protected boolean hasChanged = false;
+	
+	synchronized void incCount() {
+		currentCount++;
+	}
+	
+	synchronized void decCount() {
+		currentCount--;
+	}
+	
+	synchronized int getCount() {
+		return currentCount;
+	}
+	
+	synchronized void zeroCount() {
+		currentCount = 0;
+	}
+	
+	synchronized boolean isChanged() {
+		return hasChanged;
+	}
+	
+	synchronized void setChanged(boolean c) {
+		hasChanged = c;
+	}
+	
+	class OutputThread extends Thread {
+		Object lock = new Object();
+		OutputFormat output;
+		
+		public void run() {
+			while (true) {
+				synchronized (lock) {
+					try {
+						try {
+							lock.wait();
+						} catch (InterruptedException e) {
+						}
+
+						// call a second time if it's the first time and show
+						// header is active
+						if (output.isFirstTime() && output.isShowHeader())
+							output.output();
+
+						// normal call
+						output.preOutput();
+						if (!(output.isAttributeValuesEqualToLastRun())) {
+							output.processOutput();
+							output.posOutput();
+							setChanged(true);
+						}
+					} catch (Exception e) {
+						conf.lOG(OutputType.ERROR, "Exception", e);
+					} finally {
+						decCount();
+					}
+				}
+			}
+		}
+		
+		public OutputThread(OutputFormat o) {
+			super();
+			
+			output = o;
+			setPriority(Thread.MAX_PRIORITY - 1);
+		}
+	}
 	
 	@Override
 	public void run() {
-		boolean hasChanged = false;
+
 		while(true) {	
+			
+			// Set threads if needed
+			zeroCount();
 			for(OutputFormat out :conf.getOutputformats()) {
-				// call a second time if it's the first time and show header is active
-				if (out.isFirstTime() && out.isShowHeader()) out.output(); 
-				// normal call
-				out.preOutput();
-				if (!(out.isAttributeValuesEqualToLastRun())) {
-					out.processOutput();
-					out.posOutput();
-					hasChanged = true;
+				incCount();
+				if (threads.containsKey(out)) {
+					// Nothing.. for now
+				} else {
+					OutputThread ot = new OutputThread(out);
+					ot.setPriority(Thread.MAX_PRIORITY - 1);
+					ot.setDaemon(true);
+					ot.start();
+					threads.put(out, ot);
 				}
 			}
 			
-			if (hasChanged) {
-				hasChanged = false;
+			// Start threads
+			for(OutputFormat t : threads.keySet()) {
+				threads.get(t).setPriority(Thread.MAX_PRIORITY - 1);
+				threads.get(t).interrupt();
+			}
+			
+			// Wait for threads
+			while(getCount() > 0) {
+				try {
+					Thread.sleep(50);
+				} catch (InterruptedException e) {
+				}
+			}
+			
+			// Put to sleep threads
+			for(OutputFormat t : threads.keySet()) {
+				threads.get(t).setPriority(Thread.MIN_PRIORITY);
+			}
+			
+			if (isChanged()) {
+				setChanged(false);
 			}
 			
 			OutputFormat.cleanAttributeValues();
 			increaseGeneralCounter();
+			
+			if (internalCount > 0) {
+				if (conf.getCurrentCounter() >= internalCount) {
+					System.exit(0);
+					conf.lOG(OutputType.DEBUG, "Done");
+				}
+			}
 			
 			try {
 				Thread.sleep(timeInterval);
@@ -74,7 +177,7 @@ public class EventCollectorOutput implements CollectorOutput {
 	}
 	
 	/**
-	 * Instantiates EventCollectorOutpu
+	 * Instantiates EventCollectorOutput
 	 * 
 	 * @param conf The global configuration parameters in use (this is where the time interval will be retrived)
 	 * @param count How many times the collector process will execute (<=0 infinite)
@@ -89,6 +192,8 @@ public class EventCollectorOutput implements CollectorOutput {
 			// Default to 1 second if nothing specified
 			timeInterval = 1000;
 		}
+		
+		Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
 		
 		run();
 	}

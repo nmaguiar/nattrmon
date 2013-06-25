@@ -53,15 +53,17 @@ public class NAttrMon {
 	 * 
 	 * @param co A CollectorOutput instance to use.
 	 */
-	public NAttrMon(CollectorOutput co) {
-		conf = co.getConfig();
+	public NAttrMon(Config c, CollectorOutput co) {
+		conf = c;
 		
-		if (co.timeInterval > -1) {
-			conf.setTimeInterval(co.timeInterval);
-		}
+//		if (c.timeInterval > -1) {
+//			conf.setTimeInterval(c.timeInterval);
+//		}
 		
-		conf.lOG(OutputType.DEBUG, "Time interval set to = " + co.getConfig().getTimeInterval());
+		conf.lOG(OutputType.DEBUG, "Time interval set to = " + c.getTimeInterval());
 		conf.lOG(OutputType.DEBUG, "Count set to = " + co.count);
+		
+		co.run();
 	}
 	
 	/**
@@ -162,7 +164,7 @@ public class NAttrMon {
 			collect = new TimerCollectorOutput(co, count);
 		}
 		
-		new NAttrMon(collect);
+		new NAttrMon(co, collect);
 	}
 
 	public Config getConf() {

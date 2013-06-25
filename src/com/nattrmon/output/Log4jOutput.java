@@ -31,6 +31,11 @@ import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
+import org.apache.log4j.Priority;
+import org.apache.log4j.spi.Filter;
+import org.apache.log4j.varia.DenyAllFilter;
+import org.apache.log4j.varia.LevelMatchFilter;
+import org.apache.log4j.varia.LevelRangeFilter;
 
 import com.nattrmon.config.Config;
 import com.nattrmon.output.Output.OutputType;
@@ -44,8 +49,39 @@ public class Log4jOutput extends Output {
 	public Log4jOutput(Config conf) {
 		super(conf);
 		lOG = Logger.getLogger(LOGGER_NAME);
-		BasicConfigurator.configure(new ConsoleAppender(new PatternLayout(LOG4J_DEFAULT_PATTERN)));
+		
+		ConsoleAppender ca1 = new ConsoleAppender(new PatternLayout(LOG4J_DEFAULT_PATTERN));
+		ConsoleAppender ca2 = new ConsoleAppender(new PatternLayout(LOG4J_DEFAULT_PATTERN));
+		ConsoleAppender ca3 = new ConsoleAppender(new PatternLayout(LOG4J_DEFAULT_PATTERN));
+		
+		LevelRangeFilter lrf = new LevelRangeFilter();
+		
+		ca1.setTarget("System.out");
+		lrf.setLevelMax(Level.DEBUG);
+		lrf.setLevelMin(Level.DEBUG);
+		lrf.setAcceptOnMatch(true);
+		ca1.addFilter(lrf);
+		
+		ca2.setTarget("System.out");
+		lrf = new LevelRangeFilter();
+		lrf.setLevelMax(Level.INFO);
+		lrf.setLevelMin(Level.INFO);
+		lrf.setAcceptOnMatch(true);
+		ca2.addFilter(lrf);
+		
+		ca3.setTarget("System.err");
+		lrf = new LevelRangeFilter();
+		lrf.setLevelMax(Level.ERROR);
+		lrf.setLevelMin(Level.ERROR);
+		lrf.setAcceptOnMatch(true);
+		ca3.addFilter(lrf);
+
+		BasicConfigurator.configure(ca1);
+		BasicConfigurator.configure(ca2);
+		BasicConfigurator.configure(ca3);
+
 		setLevel(currentType);
+		
 	}
 
 	@Override

@@ -16,25 +16,25 @@
  *     specific language governing permissions and limitations
  *     under the License.
  */
-package com.nattrmon.services.beanshell;
+package com.nattrmon.services.script;
 
 import com.nattrmon.config.Config;
 import com.nattrmon.core.Object;
 import com.nattrmon.core.Service;
 
-public class BeanshellService extends Service {
+public class ScriptService extends Service {
 
-	public BeanshellService(Config conf, String serviceUrl, String params) {
+	public ScriptService(Config conf, String serviceUrl, String params) {
 		super(conf, ServiceType.InternalService, serviceUrl, params);
 	}
 
 	public static void register() {
-		Config.registerService(BeanshellService.class.getName(), "beanshell");
+		Config.registerService(ScriptService.class.getName(), "script");
 	}
 	
 	@Override
 	public Object getNewObject(String name, String params) {
-		return new BeanshellObject(conf, this, name, params);
+		return new ScriptObject(conf, this, name, params);
 	}
 	
 

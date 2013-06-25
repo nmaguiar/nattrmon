@@ -46,8 +46,13 @@ public class ConsoleOutput extends Output {
 	 */
 	@Override
 	public void write(OutputType type, String message) {
-		if (type == currentType)
-			System.out.println(System.currentTimeMillis() + ":[" + type + "]: " + message);
+		if (type == currentType) {
+			if (type == OutputType.ERROR) {
+				System.err.println(System.currentTimeMillis() + ":[" + type + "]: " + message);
+			} else {
+				System.out.println(System.currentTimeMillis() + ":[" + type + "]: " + message);
+			}
+		}
 	}
 
 	@Override

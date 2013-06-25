@@ -18,13 +18,16 @@
  */
 package com.nattrmon.mx;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
 import javax.management.AttributeNotFoundException;
+import javax.management.Descriptor;
 import javax.management.DynamicMBean;
+import javax.management.ImmutableDescriptor;
 import javax.management.InvalidAttributeValueException;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanConstructorInfo;
@@ -33,36 +36,68 @@ import javax.management.MBeanInfo;
 import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.ReflectionException;
+import javax.management.modelmbean.DescriptorSupport;
+import javax.management.openmbean.OpenMBeanAttributeInfo;
+import javax.management.openmbean.OpenMBeanAttributeInfoSupport;
+import javax.management.openmbean.OpenMBeanConstructorInfo;
+import javax.management.openmbean.OpenMBeanInfoSupport;
+import javax.management.openmbean.OpenMBeanOperationInfo;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
 
 public class DynaMXBean implements DynamicMBean {
-	protected MBeanAttributeInfo[] attrInfo;
-	protected MBeanConstructorInfo[] attrCons;
-	protected MBeanOperationInfo[] attrOps;
+	protected OpenMBeanAttributeInfo[] attrInfo;
+	protected OpenMBeanConstructorInfo[] attrCons;
+	protected OpenMBeanOperationInfo[] attrOps;
 	protected MBeanNotificationInfo[] attrNoti;
 	
 	protected HashMap<String, String> attrValues = new HashMap<String, String>();
 	
 	public DynaMXBean() {
 		String[] attrs = new String[0];
-		init(attrs);
+		String[] types = new String[0];
+		init(attrs, types);
 	}
 	
-	public DynaMXBean(String[] attrs) {
-		init(attrs);
+	public DynaMXBean(String[] attrs, String[] types) {
+		init(attrs, types);
 	}
 	
-	public void init(String[] attrs) {
+	public void init(String[] attrs, String[] types) {
 		int size = attrs.length;
 		
-		attrInfo = new MBeanAttributeInfo[size];
-		attrCons = new MBeanConstructorInfo[0];
-		attrOps  = new MBeanOperationInfo[0];
+		attrInfo = new OpenMBeanAttributeInfo[size];
+		attrCons = new OpenMBeanConstructorInfo[0];
+		attrOps  = new OpenMBeanOperationInfo[0];
 		attrNoti = new MBeanNotificationInfo[0];
 		
 		int i = 0;
+		Descriptor desc;
 
-		for (String attr : attrs) {		
-			attrInfo[i] = new MBeanAttributeInfo(attr, attr, "Attribute " + attr, true, false, false);
+		for (String attr : attrs) {	
+//			desc = null;
+			OpenType type = null;
+			if (types[i].equals("double"))
+				type = SimpleType.DOUBLE;
+//				desc = new ImmutableDescriptor( new String[] { "openType", "originalType" }, 
+//	                      new String[] { "javax.management.openmbean.SimpleType(name=java.lang.Double)",
+//	                                     "double"} );
+			if (types[i].equals("long"))
+				type = SimpleType.LONG;
+//				desc = new ImmutableDescriptor( new String[] { "openType", "originalType" }, 
+//	                      new String[] { "javax.management.openmbean.SimpleType(name=java.lang.Long)",
+//	                                     "long"} );
+//			if (desc == null) 
+			if (type == null) 
+				type = SimpleType.STRING;
+//				desc = new ImmutableDescriptor( new String[] { "openType", "originalType" }, 
+//						                      new String[] { "javax.management.openmbean.SimpleType(name=java.lang.String)",
+//						                                     "java.lang.String"} );
+//			Constructor[] constructors = this.getClass().getConstructors();
+//			attrCons[0] = new MBeanConstructorInfo(
+//			        "DynaMXBean(): No-parameter constructor",  //description
+//			        constructors[0]);                  // the contructor object
+			attrInfo[i] = new OpenMBeanAttributeInfoSupport(attr, attr, type, true, false, false);
 			//attrCons[i] = null;
 			//attrOps[i]  = null;
 			//attrNoti[i] = null;
@@ -72,8 +107,9 @@ public class DynaMXBean implements DynamicMBean {
 		}		
 	}
 	
-	public Object getAttribute(String attrName) throws AttributeNotFoundException,
-			MBeanException, ReflectionException {
+/*	public Object getAttribute(String attrName) throws AttributeNotFoundException,
+			MBeanException, ReflectionException {*/
+	public Object getAttribute(String attrName) throws AttributeNotFoundException {
 		if (attrValues.containsKey(attrName)) {
 			return new Attribute(attrName, attrValues.get(attrName));
 		} else {
@@ -92,12 +128,12 @@ public class DynaMXBean implements DynamicMBean {
 			} catch (AttributeNotFoundException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			} catch (MBeanException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (ReflectionException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+//			} catch (MBeanException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			} catch (ReflectionException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
 			}
 		}
 		
@@ -105,7 +141,9 @@ public class DynaMXBean implements DynamicMBean {
 	}
 
 	public MBeanInfo getMBeanInfo() {
-		MBeanInfo info = new MBeanInfo(getClass().getName(), "", attrInfo, attrCons, attrOps, attrNoti);
+		Descriptor desc = new ImmutableDescriptor( new String[] { "immutableInfo", "mxbean" }, 
+                new String[] { "true", "true"} );
+		MBeanInfo info = new OpenMBeanInfoSupport(getClass().getName(), "nAttrMon dynamic MX Bean", attrInfo, attrCons, attrOps, attrNoti, desc);
 		
 		return info;
 	}

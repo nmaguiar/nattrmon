@@ -55,7 +55,8 @@ public class MXServer {
 			
 			try {
 				JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://:" + port + "/jmxrmi");
-				cs = JMXConnectorServerFactory.newJMXConnectorServer(url, env, mbs);
+				cs = JMXConnectorServerFactory.newJMXConnectorServer(url, null, mbs);
+				//cs = JMXConnectorServerFactory.newJMXConnectorServer(url, env, mbs);
 				cs.start();
 			} catch (MalformedURLException e) {
 				// TODO Auto-generated catch block

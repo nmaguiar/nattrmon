@@ -24,6 +24,8 @@ import javax.management.AttributeNotFoundException;
 import javax.management.MBeanException;
 import javax.management.ReflectionException;
 
+import com.nattrmon.core.OutputFormat;
+
 import bsh.EvalError;
 import bsh.Interpreter;
 
@@ -34,13 +36,14 @@ public class DynaBeanShellMXBean extends DynaMXBean {
 	public DynaBeanShellMXBean(HashMap<String, String> scripts) {
 		super();
 		String[] keys = { "" };
+		String[] types = { "" };
 		bsScripts = scripts;
 		
 		bsScripts.keySet().toArray(keys);
-		init(keys);
+		init(keys, types);
 	}
 	
-	public Object getAttribute(String attrName) throws AttributeNotFoundException, MBeanException, ReflectionException  {
+	public Object getAttribute(String attrName) throws AttributeNotFoundException  {
 		if (bsScripts.containsKey(attrName)) {
 			try {
 				return interpreter.eval(bsScripts.get(attrName));
@@ -50,6 +53,6 @@ public class DynaBeanShellMXBean extends DynaMXBean {
 			} 
 		}
 		
-		return "n/a";
+		return OutputFormat.NOT_AVAILABLE;
 	}
 }

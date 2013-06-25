@@ -26,6 +26,7 @@ import com.nattrmon.core.Attribute;
 import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
 import com.nattrmon.core.Object;
 import com.nattrmon.core.Attribute.AttributeType;
+import com.nattrmon.core.OutputFormat;
 import com.nattrmon.output.Output.OutputType;
 
 /**
@@ -80,7 +81,7 @@ public class OpsObject extends Object {
 	 * @return The toString() result of the operation
 	 */
 	public String performOperation(String op1, String op2) {
-		if ((op1 == null) || (op2 == null)) return "n/a";
+		if ((op1 == null) || (op2 == null)) return OutputFormat.NOT_AVAILABLE;
 		
 		if (name.equalsIgnoreCase("split")) return (op1.split(op2))[0]; 
 		if (name.equalsIgnoreCase("regextrim")) return (op1.replaceAll(op2, ""));
@@ -90,7 +91,7 @@ public class OpsObject extends Object {
 			if (m.find()) {
 				return m.group();
 			} else {
-				return "n/a";
+				return OutputFormat.NOT_AVAILABLE;
 			} 
 		}
 		

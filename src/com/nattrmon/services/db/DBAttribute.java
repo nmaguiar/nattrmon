@@ -26,6 +26,7 @@ import com.nattrmon.core.Attribute;
 import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
 import com.nattrmon.core.Object;
 import com.nattrmon.core.Attribute.AttributeType;
+import com.nattrmon.core.OutputFormat;
 import com.nattrmon.output.Output.OutputType;
 
 public class DBAttribute extends Attribute {
@@ -39,7 +40,7 @@ public class DBAttribute extends Attribute {
 
 	@Override
 	public String getValue() {
-		String result = "n/a";
+		String result = OutputFormat.NOT_AVAILABLE;
 		if (parentObject != null) {
 			DBObject dbO = (DBObject) parentObject;
 			DBService dbS = (DBService) parentObject.getParentService();
@@ -49,13 +50,13 @@ public class DBAttribute extends Attribute {
 				if (type == AttributeType.Id) {
 					try {
 						result = rS.getString(Integer.parseInt(name));
-						if (result == null) result = "n/a";
+						if (result == null) result = OutputFormat.NOT_AVAILABLE;
 					} catch (NumberFormatException e) {
 						conf.lOG(OutputType.ERROR, "Exception when parsing value from name '" + name + "':", e);
 					}
 				} else if (type == AttributeType.Name) {
 						result = rS.getString(name);
-						if (result == null) result = "n/a";
+						if (result == null) result = OutputFormat.NOT_AVAILABLE;
 				} else {
 					conf.lOG(OutputType.DEBUG, "Attribute of type '" + type + "' not expected.");
 				}

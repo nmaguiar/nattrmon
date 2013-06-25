@@ -34,6 +34,7 @@ import com.nattrmon.config.Config;
 import com.nattrmon.core.Attribute;
 import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
 import com.nattrmon.core.Object;
+import com.nattrmon.core.OutputFormat;
 import com.nattrmon.core.Attribute.AttributeType;
 import com.nattrmon.output.Output.OutputType;
 
@@ -49,7 +50,6 @@ public class JMXAttribute extends Attribute {
 	}
 
 	protected String getAttributeValue(java.lang.Object attr) throws IllegalArgumentException, SecurityException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
-		
 		if (type == AttributeType.Simple) {
 			if (attr != null) {
 				return attr.toString();
@@ -68,7 +68,7 @@ public class JMXAttribute extends Attribute {
 			}
 		}
 		
-		return "n/a";
+		return OutputFormat.NOT_AVAILABLE;
 	}
 	
 	@Override
@@ -134,16 +134,16 @@ public class JMXAttribute extends Attribute {
 				conf.lOG(OutputType.ERROR, "Problem with attribute '" + name + " of object '" + objectName + "'");
 				conf.lOG(OutputType.DEBUG, "NoSuchMethodException", e);
 			} catch (AttributeNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				conf.lOG(OutputType.ERROR, "Attribute '" + name + " of object '" + objectName + "' not found.");
+				conf.lOG(OutputType.DEBUG, "AttributeNotFoundException", e);
 			} catch (MBeanException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				conf.lOG(OutputType.ERROR, "Problem with attribute '" + name + " of object '" + objectName + "'");
+				conf.lOG(OutputType.DEBUG, "MBeanException", e);
 			}
 		} else {
 			conf.lOG(OutputType.ERROR, "Could obtain a jmx connection for attribute '" + name + "' for unique attribute '" + getUniqueName() + "'");
 		}
 		
-		return "n/a";
+		return OutputFormat.NOT_AVAILABLE;
 	}
 }

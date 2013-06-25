@@ -46,6 +46,9 @@ public class UniqueAttributes {
 	 * @throws ExceptionDuplicatedUniqueAttribute If the attribute already exists an exception will be thrown
 	 */
 	public void addAttribute(String uniqueName, Attribute attr) throws ExceptionDuplicatedUniqueAttribute {
+		uniqueName = uniqueName.replaceAll("[ \n\r]", "");
+		if (uniqueName.isEmpty()) return;
+				
 		if (!(attrs.containsKey(uniqueName))) {
 			attrs.put(uniqueName, attr);
 		} else {

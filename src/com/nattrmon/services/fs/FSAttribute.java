@@ -24,6 +24,7 @@ import com.nattrmon.config.Config;
 import com.nattrmon.core.Attribute;
 import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
 import com.nattrmon.core.Object;
+import com.nattrmon.core.OutputFormat;
 import com.nattrmon.output.Output.OutputType;
 
 public class FSAttribute extends Attribute {
@@ -63,7 +64,7 @@ public class FSAttribute extends Attribute {
 			}
 		}
 		
-		return "n/a";
+		return OutputFormat.NOT_AVAILABLE;
 	}
 	
 	public long getFileNumber(File folder) {

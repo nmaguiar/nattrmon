@@ -81,16 +81,18 @@ public class JMXService extends Service {
 				String password = "";
 				boolean oldlogin = false;
 				
-				String pms[] = params.split(";");
-				for (String param : pms) {
-					tmp = param.trim();
-					prop = tmp.split("=");
-					if (prop.length == 2) {
-						if (prop[0].equalsIgnoreCase("login")) login = prop[1];
-						if (prop[0].equalsIgnoreCase("password")) password = prop[1];
-						if (prop[0].equalsIgnoreCase("provider")) provider = prop[1];
-						if (prop[0].equalsIgnoreCase("oldlogin")) if (prop[1].equalsIgnoreCase("y")) oldlogin = true;
-						if (prop[0].equalsIgnoreCase("timewait")) setTimewait(prop[1]);
+				if (params != null) {
+					String pms[] = params.split(";");
+					for (String param : pms) {
+						tmp = param.trim();
+						prop = tmp.split("=");
+						if (prop.length == 2) {
+							if (prop[0].equalsIgnoreCase("login")) login = prop[1];
+							if (prop[0].equalsIgnoreCase("password")) password = prop[1];
+							if (prop[0].equalsIgnoreCase("provider")) provider = prop[1];
+							if (prop[0].equalsIgnoreCase("oldlogin")) if (prop[1].equalsIgnoreCase("y")) oldlogin = true;
+							if (prop[0].equalsIgnoreCase("timewait")) setTimewait(prop[1]);
+						}
 					}
 				}
 				

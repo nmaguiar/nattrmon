@@ -42,15 +42,98 @@ public class TimerCollectorOutput implements CollectorOutput  {
 	protected Config conf;
 	protected long internalCount = -1;
 	protected long timeInterval = -1;
-	
+	protected TimerTask t;
+	protected Timer tt;
+
 	protected class TimerOutputTask extends TimerTask {
+		HashMap<OutputFormat, OutputThread> threads = new HashMap<OutputFormat, OutputThread>();
+		int currentCount = 0;
+		
+		synchronized void incCount() {
+			currentCount++;
+		}
+		
+		synchronized void decCount() {
+			currentCount--;
+		}
+		
+		synchronized int getCount() {
+			return currentCount;
+		}
+		
+		synchronized void zeroCount() {
+			currentCount = 0;
+		}
+		
+		class OutputThread extends Thread {
+			Object lock = new Object();
+			OutputFormat output;
+			
+			public void run() {
+				while (true) {
+					synchronized (lock) {
+						try {
+							try {
+								lock.wait();
+							} catch (InterruptedException e) {
+							}
+							
+							// call a second time if it's the first time and show header is active
+							if (output.isFirstTime() && output.isShowHeader()) output.output(); 
+							// normal call
+							output.output();
+						} catch (Exception e) {
+							conf.lOG(OutputType.DEBUG, "Exception", e);
+						} finally {
+							decCount();
+						}
+					}
+				}
+			}
+			
+			public OutputThread(OutputFormat o) {
+				super();
+				
+				output = o;
+				setPriority(Thread.MAX_PRIORITY - 1);
+			}
+		}
+		
 		@Override
 		public void run() {
+			
+			// Set threads if needed
+			zeroCount();
 			for(OutputFormat out :conf.getOutputformats()) {
-				// call a second time if it's the first time and show header is active
-				if (out.isFirstTime() && out.isShowHeader()) out.output(); 
-				// normal call
-				out.output();
+				incCount();
+				if (threads.containsKey(out)) {
+					// Nothing.. for now
+				} else {
+					OutputThread ot = new OutputThread(out);
+					ot.setPriority(Thread.MAX_PRIORITY - 1);
+					ot.setDaemon(true);
+					ot.start();
+					threads.put(out, ot);
+				}
+			}
+			
+			// Start threads
+			for(OutputFormat t : threads.keySet()) {
+				threads.get(t).setPriority(Thread.MAX_PRIORITY - 1);
+				threads.get(t).interrupt();
+			}
+			
+			// Wait for threads
+			while(getCount() > 0) {
+				try {
+					Thread.sleep(50);
+				} catch (InterruptedException e) {
+				}
+			}
+			
+			// Put to sleep threads
+			for(OutputFormat t : threads.keySet()) {
+				threads.get(t).setPriority(Thread.MIN_PRIORITY);
 			}
 			
 			// Before starting clean previous values
@@ -64,33 +147,36 @@ public class TimerCollectorOutput implements CollectorOutput  {
 				}
 			}
 		}
+		
+		public TimerOutputTask() {
+			super();
+			
+			Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+		}
+		
 	}
 
 	/**
 	 * Instantiates a TimerCollectorOutput
 	 * 
-	 * @param conf The global configuration parameters in use (this is where the time interval will be retrived)
+	 * @param conf The global configuration parameters in use (this is where the time interval will be retrieved)
 	 * @param count How many times the collector process will execute (<=0 infinite)
 	 */
 	public TimerCollectorOutput(Config conf, long count) {
 		this.conf = conf;
 		internalCount = count;
-		
-		TimerTask t;
-		Timer tt;
 
-		//try {
-		t = new TimerOutputTask();
-		tt = new Timer();
-		
 		if (conf.getTimeInterval() > -1) {
 			timeInterval = conf.getTimeInterval();
 		} else {
 			// Default to 1 second if nothing specified
 			timeInterval = 1000;
 		}
-		
-		tt.scheduleAtFixedRate(t, 0, timeInterval);
+
+		//try {
+		t = new TimerOutputTask();
+		tt = new Timer();
+	
 	}
 	
 	public void increaseGeneralCounter() {
@@ -98,7 +184,7 @@ public class TimerCollectorOutput implements CollectorOutput  {
 	}
 	
 	public void run() {
-
+		tt.scheduleAtFixedRate(t, 0, timeInterval);
 	}
 
 	public Config getConfig() {

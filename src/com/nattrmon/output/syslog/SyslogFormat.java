@@ -78,7 +78,7 @@ public class SyslogFormat extends OutputFormat {
 				syslog.getConfig().setPort(Integer.parseInt(port));
 			} catch(NumberFormatException e) {
 			}
-			writeLog("Connected");
+			//writeLog("Connected");
 		}
 	}
 	
@@ -87,7 +87,7 @@ public class SyslogFormat extends OutputFormat {
 	 */
 	public void disconnect() {
 		if (syslog != null) {
-			writeLog("Disconnected");
+			//writeLog("Disconnected");
 			syslog.shutdown();
 		}
 	}

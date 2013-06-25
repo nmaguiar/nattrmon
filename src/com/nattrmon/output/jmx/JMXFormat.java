@@ -24,6 +24,8 @@ import java.util.HashMap;
 import javax.management.AttributeNotFoundException;
 import javax.management.MBeanException;
 import javax.management.ReflectionException;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
 
 import com.nattrmon.config.Config;
 import com.nattrmon.core.Attribute;
@@ -34,10 +36,12 @@ import com.nattrmon.mx.MXServer;
 public class JMXFormat extends OutputFormat {
 	protected MXServer mxs;
 	protected int port = 9999;
-	protected String oname = "com.nattrmon:type=output";
+	protected String oname = "com.nattrmon:type=Output";
 	protected DynaMXBean dbean;
-	protected boolean convertToLong = true;
+	protected boolean convert = true;
 	protected boolean internal = false;
+	protected HashMap<String, String> retrievedValues = new HashMap<String, String>();
+	protected HashMap<String, String> retrievedTypes = new HashMap<String, String>();
 	
 	public JMXFormat(Config conf, String params) {
 		super(conf, params);
@@ -59,7 +63,7 @@ public class JMXFormat extends OutputFormat {
 						oname = prop[1];
 					}
 					if (prop[0].equalsIgnoreCase("convert")) {
-						if (prop[1].equals("n")) convertToLong = false; else convertToLong = true; 
+						if (prop[1].equals("n")) convert = false; else convert = true; 
 					}
 					if (prop[0].equalsIgnoreCase("internal")) {
 						if (prop[1].equals("y")) internal = true; else internal = false;
@@ -75,27 +79,37 @@ public class JMXFormat extends OutputFormat {
 		Config.registerFormat(JMXFormat.class.getName(), "jmxOutput");
 	}
 	
-	protected DynaMXBean getAttributesDMXBean(String[] attrs) {
+	protected DynaMXBean getAttributesDMXBean(String[] attrs, String[] types) {
 		DynaMXBean db;
-		final long counter = conf.getCurrentCounter();
-		
-		db = new DynaMXBean(attrs) {			
-			public Object getAttribute(String attrName) throws AttributeNotFoundException, MBeanException, ReflectionException {
-				if (conf.containsCurrentAttributeValues(counter, attrName)) {
-					String value = conf.getCurrentAttributeValues(counter, attrName);
 
-					if (convertToLong) {
-						try {
-							return Long.valueOf(value);
-						} catch (Exception e) {
-							return value;
-						}
-					} else {
-						return value;
-					}
-				}
+		db = new DynaMXBean(attrs, types) {			
+			public Object getAttribute(String attrName) throws AttributeNotFoundException {
+//				long counter = conf.getCurrentCounter();
+//				if (conf.containsCurrentAttributeValues(counter, attrName)) {
+//					String value = conf.getCurrentAttributeValues(counter, attrName);
+				String value = retrievedValues.get(attrName);
 				
-				return null;
+				if (value == null) throw new AttributeNotFoundException();
+				
+				if (convert) {
+					if (retrievedTypes.get(attrName).equals("long")) {
+						try {
+							return new Long(value);
+						} catch (Exception e) {
+							return new String(value);
+						}
+					}
+					if (retrievedTypes.get(attrName).equals("double")) {
+						try {
+							return new Double(value);
+						} catch (Exception e) {
+							return new String(value);
+						}
+					}
+					return new String(value);
+				} else {
+					return new String(value);
+				}
 			}
 		};
 		
@@ -105,35 +119,64 @@ public class JMXFormat extends OutputFormat {
 	protected void setInternalDMXBean() {
 		DynaMXBean db;
 		
-		String attrs[];
+		String attrs[], types[];
 
 		attrs = new String[] { "Count", "OutputType", "TimeInterval", "ObjectsInCache" };
+		types = new String[] { "long", "java.lang.String", "long", "int" };
 		
-		db = new DynaMXBean(attrs) {
-			public Object getAttribute(String attrName) throws AttributeNotFoundException, MBeanException, ReflectionException {
-				if (attrName.equalsIgnoreCase("Count")) return conf.getCurrentCounter();
+		db = new DynaMXBean(attrs, types) {
+			public Object getAttribute(String attrName) throws AttributeNotFoundException {
+				if (attrName.equalsIgnoreCase("Count")) return new Long(conf.getCurrentCounter());
 				if (attrName.equalsIgnoreCase("OutputType")) return conf.getDefaultType().name();
-				if (attrName.equalsIgnoreCase("TimeInterval")) return conf.getTimeInterval();
-				if (attrName.equalsIgnoreCase("ObjectsInCache")) return conf.getCache().getNumberOfCurrentCachedObjects();
+				if (attrName.equalsIgnoreCase("TimeInterval")) return new Long(conf.getTimeInterval());
+				if (attrName.equalsIgnoreCase("ObjectsInCache")) return new Integer(conf.getCache().getNumberOfCurrentCachedObjects());
 				
-				return null;
+				throw new AttributeNotFoundException();
 			}
 		};
 		mxs.addDynaBean("com.nattrmon:type=Config", db);
-		
 	}
 	
 	@Override
 	public void processOutput() {
 		ArrayList<String> attrNames = null;
+		long counter = conf.getCurrentCounter();
+		String value = null;
+		attrNames = getAttrNames();
 		
 		if (dbean == null) {
 			//String attrs[] = new String[conf.getCurrentAttributeValues4Counter(conf.getCurrentCounter()).keySet().size()];
 			String attrs[] = new String[getAttrNames().size()];
-			attrNames = getAttrNames();
+			String types[] = new String[getAttrNames().size()];
 			
 			int i = 0;
 			for (String attr : attrNames) {
+				if (conf.containsCurrentAttributeValues(counter, attr)) {
+					value = conf.getCurrentAttributeValues(counter, attr);
+					retrievedValues.put(attr, value);
+				} else {
+					retrievedValues.put(attr, null);
+				}
+				
+				if ((value != null) && (convert = true)) {
+					try {
+						Long.valueOf(value);
+						types[i] = "long";
+						retrievedTypes.put(attr, "long");
+					} catch (Exception e) {
+						try {
+							Double.valueOf(value);
+							types[i] = "double";
+							retrievedTypes.put(attr, "double");
+						} catch (Exception ee) {
+							types[i] = "java.lang.String";
+							retrievedTypes.put(attr, "java.lang.String");
+						}
+					}
+				} else {
+					types[i] = "java.lang.String";
+				}
+				
 				attrs[i] = attr;
 				i++;
 			}
@@ -144,10 +187,20 @@ public class JMXFormat extends OutputFormat {
 				i++;
 			}*/
 			
-			dbean = getAttributesDMXBean(attrs);
+			dbean = getAttributesDMXBean(attrs, types);
 			mxs.addDynaBean(oname, dbean);
 			
 			if (internal) setInternalDMXBean();
+		} else {
+			
+			for (String attr : attrNames) {
+				if (conf.containsCurrentAttributeValues(counter, attr)) {
+					value = conf.getCurrentAttributeValues(counter, attr);
+					retrievedValues.put(attr, value);
+				} else {
+					retrievedValues.put(attr, null);
+				}
+			}
 		}
 	}
 

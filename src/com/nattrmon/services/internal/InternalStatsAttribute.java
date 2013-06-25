@@ -24,6 +24,7 @@ import com.nattrmon.config.Config;
 import com.nattrmon.core.Attribute;
 import com.nattrmon.core.ExceptionDuplicatedUniqueAttribute;
 import com.nattrmon.core.Object;
+import com.nattrmon.core.OutputFormat;
 
 public class InternalStatsAttribute extends Attribute {
 
@@ -48,7 +49,7 @@ public class InternalStatsAttribute extends Attribute {
 			InternalStatsObject po = (InternalStatsObject) parentObject;
 			long lastTime = po.getLastTime();
 			if (lastTime == -1) {
-				return "n/a";
+				return OutputFormat.NOT_AVAILABLE;
 			} else {
 				return String.valueOf(lastTime);
 			}
@@ -59,7 +60,7 @@ public class InternalStatsAttribute extends Attribute {
 		} else if (name.equalsIgnoreCase("cacheCounter")) {
 			return String.valueOf(conf.getCache().getNumberOfCurrentCachedObjects());
 	    } else {
-			return "n/a";
+			return OutputFormat.NOT_AVAILABLE;
 		}
 	}
 }

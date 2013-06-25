@@ -32,11 +32,11 @@ public class DynaObjectMXBean extends DynaMXBean {
 	protected Object objRef;
 	protected ArrayList<String> validMethods;
 
-	public DynaObjectMXBean(Object obj, String[] methodNames) {
+	public DynaObjectMXBean(Object obj, String[] methodNames, String[] types) {
 		super();
 		objRef = obj;
 
-		init(methodNames);
+		init(methodNames, types);
 	}
 
 	public String[] listOfMethods() {
@@ -72,7 +72,7 @@ public class DynaObjectMXBean extends DynaMXBean {
 		return mts;
 	}
 	
-	public Object getAttribute(String attrName) throws AttributeNotFoundException, MBeanException, ReflectionException  {
+	public Object getAttribute(String attrName) throws AttributeNotFoundException  {
 		if (validMethods.contains(attrName)) {
 			
 			try {

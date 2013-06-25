@@ -282,7 +282,10 @@ public class Config {
 	 * 
 	 */
 	public void increaseCounter() {
-		generalCount++;
+		if ((generalCount + 1) == Long.MAX_VALUE) 
+			generalCount = 1;	// Turn around if limit is achieved
+		else 
+			generalCount++;
 	}
 	
 	/**
@@ -326,7 +329,7 @@ public class Config {
 	 * 
 	 * @return The current time interval.
 	 */
-	public long getTimeInterval() {
+	public synchronized long getTimeInterval() {
 		return timeInterval;
 	}
 
@@ -335,7 +338,7 @@ public class Config {
 	 * 
 	 * @param timeInterval The new time interval
 	 */
-	public void setTimeInterval(long timeInterval) {
+	public synchronized void setTimeInterval(long timeInterval) {
 		this.timeInterval = timeInterval;
 	}
 
