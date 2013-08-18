@@ -25,8 +25,18 @@ import com.nattrmon.output.Output.OutputType;
 
 public class XMLSettings {
 	protected Config conf = Config.getConfig();
+	public String params = null;
 	protected ArrayList<Include> includes = new ArrayList<Include>();
 
+	public String getParams() {
+		return params;
+	}
+
+	public void setParams(String params) {
+		this.params = params;
+		conf.setParams(params);
+	}
+	
 	public ArrayList<Include> getSettings() {
 		return includes;
 	}
