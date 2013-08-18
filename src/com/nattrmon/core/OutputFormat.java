@@ -21,7 +21,28 @@ package com.nattrmon.core;
 import java.lang.Thread.State;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.nattrmon.config.Config;
 import com.nattrmon.output.Output.OutputType;
@@ -38,24 +59,46 @@ public class OutputFormat {
 	final static public String NOT_AVAILABLE = "n/a";
 	final static public String TIME_OUT = "t/o";
 	final static public String NOT_RETRIEVED = "n/r";
+	final static public String BEING_RETRIEVED = "b/r";
+	protected static ExecutorService fillThreads = Executors.newCachedThreadPool();
+	protected static ConcurrentLinkedQueue<String> attributesToFill;
+	protected static java.lang.Object lock = new java.lang.Object();
 	protected Config conf;
 	protected String text;
 	protected String param;
 	protected boolean firstTime = true;
 	protected boolean showHeader = true;
 	protected static boolean refreshValues = true;
-	protected boolean determineParallelFill = true;
-	protected boolean useParallelFill = false;
+	protected static Boolean determineParallelFill = true;
+	protected static boolean useParallelFill = false;
 	protected boolean processOutput = true;
-	protected static int countThreads = 0;
-	protected static HashMap<String, Thread> threads = new HashMap<String, Thread>();
+	protected boolean waitForServices = true;
+	protected long timeout = -1;
+	protected static CyclicBarrier outputsSignal = null;
+	protected static Semaphore startSignal = null;
+	protected static CyclicBarrier doneSignal = null;
+	//protected static Counter countThreads = new Counter();
+	protected static ConcurrentHashMap<String, ValueThread> threads = new ConcurrentHashMap<String, ValueThread>();
+	protected ConcurrentHashMap<String, Thread> localThreads = new ConcurrentHashMap<String, Thread>();
+	protected static ArrayList<String> internalAttrs = new ArrayList<String>();
+	protected static int numberOfDisplayableAttrs = 0;
+	protected ArrayList<String> attributes = null;
+	public int myTotalThreads = 0;
+	protected long localCounter;
+	protected Boolean jobDone = false;
+	//protected static Semaphore jobDone = new Semaphore(0);
+	protected boolean cancelThread = false;
 	
 	public String getText() {
 		return text;
 	}
 
 	public void setText(String text) {
+		attributes = null;
 		this.text = text;
+		
+		if (numberOfDisplayableAttrs < getAttrNames().size())
+			numberOfDisplayableAttrs = getAttrNames().size();
 	}
 
 	/**
@@ -84,17 +127,61 @@ public class OutputFormat {
 	public OutputFormat(Config conf, String param) {
 		this.conf = conf;
 		this.param = param;
+		
+		String settingsParams = conf.getParams();
+		if (settingsParams != null) {
+			String pms[] = settingsParams.split(";");
+			String tmp = "";
+			String prop[];
+	
+			for (String p : pms) {
+				tmp = p.trim();
+				prop = tmp.split("=");
+				if (prop.length == 2) {
+					if (prop[0].equalsIgnoreCase("wait"))
+						if (prop[1].equalsIgnoreCase("y"))
+							waitForServices = true;
+						else
+							waitForServices = false;
+					if (prop[0].equalsIgnoreCase("timeout"))
+						try { timeout = Long.valueOf(prop[1]); } catch (Exception e) {} 
+					if (prop[0].equalsIgnoreCase("serial")) 
+						if (prop[1].equalsIgnoreCase("y")) {
+							determineParallelFill = false;
+							useParallelFill = false;
+						} else {
+							determineParallelFill = false;
+							useParallelFill = true;							
+						}
+					if (prop[0].equalsIgnoreCase("parallel")) 
+						if (prop[1].equalsIgnoreCase("y")) {
+							determineParallelFill = false;
+							useParallelFill = true;
+						} else {
+							determineParallelFill = false;
+							useParallelFill = false;
+						}
+					if (prop[0].equalsIgnoreCase("cancelThread")) 
+						if (prop[1].equalsIgnoreCase("y")) 
+							cancelThread = true;
+				}
+			}
+		}
+	}
+	
+	public long getLocalCounter() {
+		return localCounter;
 	}
 
 	/**
 	 * Main output method. Should be called whenever necessary to 
 	 * output data.
 	 */
-	public void output() {
-		preOutput();
+	public void output(long counter) {	
+		preOutput(counter);
 		//if (processOutput) {
-			processOutput();
-			posOutput();
+			processOutput(counter);
+			posOutput(counter);
 		//}
 		//processOutput();
 	}
@@ -118,12 +205,15 @@ public class OutputFormat {
 	 * To be called before actually performing the output
 	 * 
 	 */
-	public synchronized void preOutput() {
+	public void preOutput(long counter) {
 		//if (inFill == false) {
+		localCounter = counter; 
+		refreshValues = true;
+		
 			if (useParallelFill()) {
-				parallelFillAttributeValues();
+				parallelFillAttributeValues(counter);
 			} else {
-				fillAttributesValues();
+				fillAttributesValues(counter);
 			}
 			//inFill = true;
 		//} 
@@ -132,13 +222,14 @@ public class OutputFormat {
 	/**
 	 * Should be called only from output method. Classes extending this one
 	 * should implement this method.
+	 * @param counter 
 	 * 
 	 */
-	public void processOutput() {
+	public void processOutput(long counter) {
 		
 	}
 	
-	public synchronized void posOutput() {
+	public void posOutput(long counter) {
 		if (firstTime) firstTime = false;
 		//inFill = false;
 	}
@@ -171,21 +262,25 @@ public class OutputFormat {
 	 * @return a list of attribute names
 	 */
 	protected ArrayList<String> getAttrNames() {
-		String orderText = getText();
-		
-		if (orderText != null) {		
-			orderText = orderText.replaceAll("[ \n\r\t]", "");
-			orderText = orderText.trim();
+		if (attributes == null) {
+			String orderText = getText();
+
+			attributes = new ArrayList<String>();
 			
-			ArrayList<String> res = new ArrayList<String>(Arrays.asList(orderText.split(",")));
-			if (res.contains(null) || res.contains("")) {
-				conf.lOG(OutputType.ERROR, "Bad attribute on list for output '" + this.text + "'");
-			} else {
-				return new ArrayList<String>(Arrays.asList(orderText.split(",")));
+			if (orderText != null) {		
+				orderText = orderText.replaceAll("[ \n\r\t]", "");
+				orderText = orderText.trim();
+				
+				ArrayList<String> res = new ArrayList<String>(Arrays.asList(orderText.split(",")));
+				if (res.contains(null) || res.contains("")) {
+					conf.lOG(OutputType.ERROR, "Bad attribute on list for output '" + this.text + "'");
+				} else {
+					attributes = new ArrayList<String>(Arrays.asList(orderText.split(",")));
+				}
 			}
-		}
+		} 
 		
-		return new ArrayList<String>();
+		return attributes;
 	}
 	
 	/**
@@ -195,8 +290,9 @@ public class OutputFormat {
 	 */
 	public boolean useParallelFill() {
 		if (determineParallelFill) {
-			UniqueAttributes ua = conf.getUniqueAttrs();
+			if (useParallelFill) return true;
 			boolean use = false;
+			UniqueAttributes ua = conf.getUniqueAttrs();
 			Attribute atr = null;
 
 			int countHeavy = 0;
@@ -218,7 +314,6 @@ public class OutputFormat {
 			
 			useParallelFill = use;
 			determineParallelFill = false;
-			
 			return use;
 		} else {
 			return useParallelFill;
@@ -229,14 +324,14 @@ public class OutputFormat {
 	 * Fill all unique attributes with values in a sequential way.
 	 * 
 	 */
-	public void fillAttributesValues() {
+	public void fillAttributesValues(long counter) {
 		UniqueAttributes ua = conf.getUniqueAttrs();
 		Attribute atr = null;
 		ArrayList<String> lastToRun = new ArrayList<String>();
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		
 		for(String attr :getAttrNames()) {
-			if (!(conf.containsCurrentAttributeValues(counter, attr)) || (refreshValues)) {
+			if (!(conf.containsCurrentAttributeValues(counter, attr))) {
 				if (attr != null) {
 					atr = ua.getAttribute(attr);
 					if (atr != null) {
@@ -252,7 +347,7 @@ public class OutputFormat {
 			
 		// Internal attributes must be the last to run
 		for(String attr2 :lastToRun) {
-			if (!(conf.containsCurrentAttributeValues(counter, attr2)) || (refreshValues)) {
+			if (!(conf.containsCurrentAttributeValues(counter, attr2))) {
 				if (attr2 != null) {
 					atr = ua.getAttribute(attr2);
 					if (atr != null) {
@@ -262,7 +357,7 @@ public class OutputFormat {
 			}
 		}
 		
-		refreshValues = false;
+		//refreshValues = false;
 	}
 	
 	/**
@@ -299,162 +394,407 @@ public class OutputFormat {
 		return true;		
 	}
 	
-	public synchronized  void incCount() {
-		countThreads++;
+	/**
+	 * Sub-class to retrieve attribute values
+	 * 
+	 *
+	 */
+	class ValueThread extends Thread {
+		protected Attribute a;
+		boolean shouldRun = false;
+		
+		public ValueThread(String atr) {
+			a = conf.getUniqueAttrs().getAttribute(atr);
+			setName(atr);
+			shouldRun = true;
+			
+//			synchronized (threads) {
+//				if (threads.containsKey(a.getUniqueName())) {
+//					shouldRun = false;
+//				} else {
+//					threads.put(a.getUniqueName(), this);
+//					synchronized (localThreads) {
+//						localThreads.put(a.getUniqueName(), this);
+//					}
+//					shouldRun = true;
+//				}
+//			}
+		}
+		
+		public void run() {
+			if (shouldRun) myTotalThreads++;
+			while (shouldRun) {
+				startSignal.acquireUninterruptibly();
+				
+				long start = System.currentTimeMillis();
+
+				if (a != null) {
+					conf.lOG(OutputType.DEBUG, "Thread processing attribute: [" + getLocalCounter() + "] " + a.getUniqueName());
+					String ss = a.getValue();
+					setResult(ss);
+				}
+				conf.lOG(
+						OutputType.DEBUG,
+						"Thread processing attribute [" + getLocalCounter() + "] "
+								+ a.getUniqueName() + " took "
+								+ (System.currentTimeMillis() - start)
+								+ " to run.");
+				
+				try {
+					doneSignal.await();
+				} catch (InterruptedException e) {
+				} catch (BrokenBarrierException e) {
+				}
+			}
+		}
+		
+		public void setResult(String r) {
+			if (conf.isCurrentAttributeValue(getLocalCounter(), a.getUniqueName(), OutputFormat.BEING_RETRIEVED))
+				conf.setCurrentAttributeValues(getLocalCounter(), a.getUniqueName(), r);
+			else 
+				conf.setCurrentAttributeValues(conf.getCurrentCounter(), a.getUniqueName(), r);
+		}
+	}
+
+	protected void prepareThreads(long counter) {
+		ArrayList<String> runNow = new ArrayList<String>();
+		// If no start signal lock exists, make one
+		synchronized(threads) {
+			if (startSignal == null) {
+				startSignal = new Semaphore(-numberOfDisplayableAttrs); // don't forget to reduce internal
+			}
+			//if (startSignal.availablePermits() < numberOfDisplayableAttrs);
+		}
+		
+		// First group of attributes (non internal)
+		synchronized(threads) {
+			for(String attr :getAttrNames()) {
+				// Is it already being handled?
+				if (!(conf.containsCurrentAttributeValues(counter, attr))) {
+					if (attr != null) {
+						if (conf.getUniqueAttrs().getAttribute(attr) != null) {
+								conf.setCurrentAttributeValues(counter, attr, OutputFormat.BEING_RETRIEVED);
+								if (conf.getUniqueAttrs().getAttribute(attr).isInternal) {
+									if (!(internalAttrs.contains(attr))) internalAttrs.add(attr);
+								} else {
+									if (!(threads.containsKey(attr))) runNow.add(attr);
+								}
+						}
+					}
+				}
+			}
+						
+			for(String attr : runNow) {
+				ValueThread t = new ValueThread(attr);
+				t.setPriority(Thread.MAX_PRIORITY-3);
+				t.start();
+				
+				// Ensure thread starts and is ready and waiting to perform work or died
+				while(!(t.getState().equals(State.WAITING)) && !(t.getState().equals(State.TERMINATED))) {
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+					}
+				}
+				threads.put(attr, t);
+			}
+		}
 	}
 	
-	public synchronized void decCount() {
-		countThreads--;
+	protected synchronized void prepareDoneSignal() {
+		final String IIIIII = this.getClass().getName();
+		if (doneSignal == null) {
+			Runnable runInternal = new Runnable() {
+				@Override
+				public void run() {
+					Attribute atr;
+					// Run internal, if necessary, in sequential fashion
+					for(String lastAtr : internalAttrs) {
+						if (conf.isCurrentAttributeValue(getLocalCounter(), lastAtr, OutputFormat.BEING_RETRIEVED)) {
+							atr = conf.getUniqueAttrs().getAttribute(lastAtr);
+							startSignal.acquireUninterruptibly();
+							conf.lOG(OutputType.DEBUG, "Starting processing internal attribute: [" + getLocalCounter() + "] " + lastAtr);
+							if (atr != null) conf.setCurrentAttributeValues(getLocalCounter(), lastAtr, atr.getValue()); 
+							conf.lOG(OutputType.DEBUG, "Processed internal attribute: [" + getLocalCounter() + "] " + lastAtr);
+						}
+					}
+					jobDone = true;
+				}			
+			};
+			
+			//if (threads.size() > 0) 
+			doneSignal = new CyclicBarrier(numberOfDisplayableAttrs - internalAttrs.size(), runInternal);
+			//else 
+			//	doneSignal = new CyclicBarrier(1, runInternal);
+		} else {
+		}
 	}
 	
-	public synchronized void zeroCount() {
-		countThreads = 0;
+	class FillValues implements Callable<String> {
+		String atr = null;
+		
+		public FillValues(String attr) {
+			atr = attr;
+		}
+		@Override
+		
+		public String call() throws Exception {
+			try {
+				conf.setCurrentAttributeValues(getLocalCounter(), atr, OutputFormat.NOT_RETRIEVED);
+				long start = System.currentTimeMillis();
+				conf.lOG(OutputType.DEBUG, "Thread processing attribute: [" + getLocalCounter() + "] " + atr);
+				conf.setCurrentAttributeValues(getLocalCounter(), atr, conf.getUniqueAttrs().getAttribute(atr).getValue());
+				conf.lOG(
+						OutputType.DEBUG,
+						"Thread processing attribute [" + getLocalCounter() + "] "
+								+ atr + " took "
+								+ (System.currentTimeMillis() - start)
+								+ " to run.");
+			} catch(Exception e) {
+				conf.lOG(OutputType.DEBUG, "Exception for [" + getLocalCounter() + "] - " + atr, e);
+			}
+			return atr;
+		}
+		
+		public String getAttributeName() {
+			return atr;
+		}
+		
 	}
 	
-	public synchronized int getCount() {
-		return countThreads;
+	public void parallelFillAttributeValues(long counter) {
+		synchronized(lock) {
+			if (refreshValues) {
+				if (attributesToFill == null) attributesToFill = new ConcurrentLinkedQueue<String>();
+
+				ArrayList<String> internal = new ArrayList<String>();
+				ArrayList<String> normal = new ArrayList<String>();
+				for(Attribute attr :conf.getUniqueAttrs().getAttrs().values()) {
+					if (attr.isInternal) {
+						if (!(internal.contains(attr.uniqueName))) {
+							internal.add(attr.uniqueName);
+						}
+					} else {
+						if (!(normal.contains(attr.uniqueName))) {
+							normal.add(attr.uniqueName);
+						}
+					}
+				}
+				
+//				for(String attr : internal) {
+//					if (!(attributesToFill.contains(attr))) {
+//						attributesToFill.add(attr);
+//					}
+//				}
+				
+				for(String attr : normal) {
+					if (!(attributesToFill.contains(attr))) {
+						attributesToFill.add(attr);
+					}
+				}
+				
+	//			}
+			
+				//ArrayList<Callable> tasks = new ArrayList<Callable>();
+				ArrayList<FillValues> tasksToRun = new ArrayList<FillValues>();
+				for(String attr : attributesToFill) {
+					FillValues task;
+					try {
+						task = new FillValues(attr);
+						if (task != null) tasksToRun.add(task);
+					} catch (Exception e) {
+						conf.lOG(OutputType.DEBUG, "Exception for [" + getLocalCounter() + "] - " + e.getMessage());
+					}
+					
+				}
+				
+				//for(Future task : tasks) {
+
+				List<Future<String>> retList = null;
+				if (waitForServices)
+					try {
+						retList = fillThreads.invokeAll(tasksToRun);
+					} catch (InterruptedException e) {
+						conf.lOG(OutputType.DEBUG, "InterruptedException", e);
+					} catch (RejectedExecutionException e) {
+						conf.lOG(OutputType.DEBUG, "RejectedExecutionException", e);
+					}
+				else {
+					try {
+						retList = fillThreads.invokeAll(tasksToRun, timeout, TimeUnit.MILLISECONDS);
+					} catch (InterruptedException e) {
+						conf.lOG(OutputType.DEBUG, "InterruptedException", e);
+					} catch (RejectedExecutionException e) {
+						conf.lOG(OutputType.DEBUG, "RejectedExecutionException", e);
+					}
+				}
+				
+				if (retList != null)
+					for(Future<String> ret : retList) {
+						if (ret.isCancelled()) {
+							try {
+								conf.setCurrentAttributeValues(getLocalCounter(), ret.get(), OutputFormat.NOT_RETRIEVED);
+							} catch (InterruptedException e) {
+								conf.lOG(OutputType.DEBUG, "InterruptedException", e);
+								if (cancelThread) ret.cancel(true);
+							} catch (ExecutionException e) {
+								conf.lOG(OutputType.DEBUG, "ExecutionException", e);
+								if (cancelThread) ret.cancel(true);
+							} catch (CancellationException e) {
+								conf.lOG(OutputType.DEBUG, "Canceled thread", e);
+								if (cancelThread) ret.cancel(true);
+							} 
+						}
+					}
+				
+				Attribute atr;
+				long start;
+				for(String attr2 :internal) {
+					if (!(conf.containsCurrentAttributeValues(counter, attr2))) {
+						if (attr2 != null) {
+							atr = conf.getUniqueAttrs().getAttribute(attr2);
+							if (atr != null) {
+								conf.lOG(OutputType.DEBUG, "Processing attribute: [" + getLocalCounter() + "] " + atr.getUniqueName());
+								start = System.currentTimeMillis();
+								conf.setCurrentAttributeValues(counter, attr2, atr.getValue());
+								conf.lOG(
+										OutputType.DEBUG,
+										"Thread processing attribute [" + getLocalCounter() + "] "
+												+ atr.getUniqueName() + " took "
+												+ (System.currentTimeMillis() - start)
+												+ " to run.");
+							}				
+						}			
+					}
+				}
+				
+				
+//				//}	
+			}
+			refreshValues = false;
+		}
 	}
-	
 	/**
 	 * Fill all unique attributes with values in parallel processing.
 	 * 
 	 */
-	public void parallelFillAttributeValues() {
-		final UniqueAttributes ua = conf.getUniqueAttrs();
-		Attribute atr = null;
-		ArrayList<String> lastToRun = new ArrayList<String>();
-		long counter = conf.getCurrentCounter();
+	public void parallelFillAttributeValues2(long counter) {
+		UniqueAttributes ua = conf.getUniqueAttrs();
+		//Semaphore jobDone = new Semaphore(1);
+	
+		jobDone = false;
 		
-		class ValueThread extends Thread {
-			protected Attribute a;
-			protected java.lang.Object lock = new java.lang.Object();
-			
-			public ValueThread(String atr) {
-				a = ua.getAttribute(atr);
-				setName(atr);
-			}
-			
-			public void run() {
-				boolean shouldRun = false;
-				
-				synchronized (threads) {
-					if (threads.containsKey(a.getUniqueName())) {
-						shouldRun = false;
-					} else {
-						threads.put(a.getUniqueName(), this);
-						shouldRun = true;
-					}
-				}
-				
-				while (shouldRun && threads.containsKey(a.getUniqueName())) {
-					synchronized (lock) {
-						try {
-							lock.wait();
-						} catch (InterruptedException e) {
-						}
-						long start = System.currentTimeMillis();
-
-						if (a != null) {
-							conf.lOG(OutputType.DEBUG, "Thread processing attribute: " + a.getUniqueName());
-							setResult(OutputFormat.TIME_OUT); // Be sure is initialized in case of a timeout;
-							setResult(a.getValue());
-						}
-						conf.lOG(
-								OutputType.DEBUG,
-								"Thread processing attribute "
-										+ a.getUniqueName() + " took "
-										+ (System.currentTimeMillis() - start)
-										+ " to run.");
-						decCount();
-					}
-				}
-			}
-			
-			public synchronized void setResult(String r) {
-				conf.setCurrentAttributeValues(conf.getCurrentCounter(), a.getUniqueName(), r);
-			}
+		// 1 - PREPARE THREADS
+		// -------------------	
+		prepareThreads(counter);
+		
+		// 2 - WAIT FOR EVERY OUTPUT PREPARES THREADS
+		// ------------------------------------------
+		int totalNumberAttributes = numberOfDisplayableAttrs;
+		synchronized(threads) {
+			threads.notifyAll();
 		}
 		
-		zeroCount();
-		// First group of attributes (non internal)
-		for(String attr :getAttrNames()) {
-			if (!(conf.containsCurrentAttributeValues(counter, attr)) || (refreshValues)) {
-				if (attr != null) {
-					if (ua.getAttribute(attr) != null)
-							if (ua.getAttribute(attr).isInternal) {
-								lastToRun.add(attr);
-							} else {
-								incCount();
-								synchronized (threads) {
-									conf.setCurrentAttributeValues(counter, attr, OutputFormat.NOT_RETRIEVED);
-									if (threads.containsKey(attr)) {
-										
-									} else {
-										Thread t = new ValueThread(attr);
-										//if (threads.size() > 10) threadWait(threads);
-										t.setPriority(Thread.MAX_PRIORITY-3);
-										//t.setDaemon(true);
-										t.start();
-										//threads.put(attr, t);
-									}
-								}
-							}
-				}
-			}
-		}
-		
-		// Signal for everyone to run	
-		synchronized (threads) {
-			for(Thread t : threads.values()) {
-				if (t.getState().equals(State.WAITING)) {
-					t.setPriority(Thread.MAX_PRIORITY-3);
-					t.interrupt();
-				}
-			}
-		}
-		
-		long timeInWaitingLimit = conf.getTimeInterval() * 5;
-		long timeInWaiting = System.currentTimeMillis();
-		long actualInWaiting = 0;
-		
-		while((getCount() > 0) && 
-			  (actualInWaiting < timeInWaitingLimit)) {
+		while (internalAttrs.size() + startSignal.getQueueLength() < totalNumberAttributes) {
 			try {
-				actualInWaiting = System.currentTimeMillis() - timeInWaiting;
-				this.wait(500);
+				synchronized (threads) {
+					threads.wait();
+				}
 			} catch (InterruptedException e) {
 			}
 		}
+
+		// 3 - START EVERYONE
+		// ------------------
 		
-		synchronized (threads) {
-			for(Thread t : threads.values()) {
-				if (t.getState().equals(State.WAITING)) {
-					t.setPriority(Thread.MIN_PRIORITY);
+		// 3.1 - PREPARE DONE SIGNAL
+		// -------------------------
+		prepareDoneSignal();
+		
+		// 3.2 - SEND SIGNAL
+		// -----------------
+		synchronized(threads) {
+			startSignal.release(startSignal.getQueueLength());
+		}
+		
+		long timeInWaitingLimit;
+		if (timeout != -1) {
+			timeInWaitingLimit = timeout;
+		} else {
+			timeInWaitingLimit = conf.getTimeInterval() * 5 * 1000;
+		}
+		boolean wasItTimeOut = false;
+
+		
+		if (waitForServices) {		
+			try {
+				doneSignal.await();
+			} catch (InterruptedException e) {
+			}
+			catch (BrokenBarrierException e) {
+			}
+			
+			synchronized(jobDone) {
+				jobDone.notifyAll();
+			}
+			
+			while(jobDone != true) {
+				try {
+					synchronized(jobDone) {
+						jobDone.wait();
+					}
+				} catch (InterruptedException e) {
 				}
+			}
+		} else {
+			try {
+				doneSignal.await(timeInWaitingLimit, TimeUnit.MILLISECONDS);
+			} catch (InterruptedException e) {
+			} catch (BrokenBarrierException e) {
+			} catch (TimeoutException e) {
+				wasItTimeOut = true;
 			}
 		}
 		
-		if (actualInWaiting >= timeInWaitingLimit) {
+		// Ensure everyone executed
+//		//for (String attr : getAttrNames()) {
+//			if (waitForServices) {
+//				synchronized(threads) {
+//					threads.notifyAll();
+//				} 
+//				
+//				while( (startSignal.getQueueLength() < (numberOfDisplayableAttrs - this.internalAttrs.size())
+//						&& jobDone == false)) {
+//					try {
+//						threads.wait();
+//					} catch (InterruptedException e) {
+//					}
+//				}
+//			} else {
+//				for (String attr : getAttrNames()) {
+//					if (conf.isCurrentAttributeValue(getLocalCounter(), attr, OutputFormat.BEING_RETRIEVED)) {
+//						if (wasItTimeOut) {
+//							conf.setCurrentAttributeValues(getLocalCounter(), attr, OutputFormat.TIME_OUT);
+//						} else {
+//							conf.setCurrentAttributeValues(getLocalCounter(), attr, OutputFormat.NOT_RETRIEVED);
+//						}
+//					}
+//				}
+//			}
+		//}		
+		//refreshValues = false;
+		
+		if (wasItTimeOut)
 			conf.lOG(OutputType.DEBUG, "Time out waiting for attribute threads (" + timeInWaitingLimit + "ms)");
-		}
 		
-		// Run internal, if necessary, in sequential fashion
-		for(String lastAtr : lastToRun) {
-			if (!(conf.containsCurrentAttributeValues(counter, lastAtr)) || (refreshValues)) {
-				atr = ua.getAttribute(lastAtr);
-				if (atr != null) conf.setCurrentAttributeValues(counter, lastAtr, atr.getValue()); 
-				conf.lOG(OutputType.DEBUG, "Processing attribute: " + lastAtr);
-			}			
-		}
-		
-		refreshValues = false;
 	}
 	
 	/**
 	 * Indicates that a next interaction should clean previously retrieved values.
 	 * 
+	 * @deprecated
 	 */
 	public static void cleanAttributeValues() {
-		refreshValues = true;
+		//refreshValues = true;
 	}
 }
