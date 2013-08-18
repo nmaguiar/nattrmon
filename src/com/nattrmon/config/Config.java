@@ -20,6 +20,7 @@ package com.nattrmon.config;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.nattrmon.collector.CollectorOutput;
 import com.nattrmon.core.OutputFormat;
@@ -42,12 +43,28 @@ public class Config {
 	protected OutputType defaultType = OutputType.INFO;
 	protected Output output;
 	protected UniqueAttributes uniqueAttrs = new UniqueAttributes();
-	protected HashMap<Long, HashMap<String, String>> attributeValues = new HashMap<Long, HashMap<String,String>>();
+	protected ConcurrentHashMap<Long, ConcurrentHashMap<String, String>> attributeValues = new ConcurrentHashMap<Long, ConcurrentHashMap<String,String>>();
 	protected static HashMap<String, String> registeredServices = new HashMap<String, String>();
 	protected static HashMap<String, String> registeredFormats = new HashMap<String, String>();
 	protected SimpleCache cache = new SimpleCache(this);
 	protected long timeInterval = 1000;
 	protected String collector = "timer";  // Default to timer if no collector specified
+	protected ArrayList<Service> services = new ArrayList<Service>(); // The services configured
+	protected ArrayList<OutputFormat> outputformats = new ArrayList<OutputFormat>(); // The outputs configured
+	private String params;
+	
+	protected static final long limitObjectInCacheAge = -1;
+	protected static Config conf;
+
+	public static Config getConfig() {
+		if (conf != null) {
+			return conf;
+		} else {
+			conf = new Config();
+			return conf;
+		}
+	}
+
 
 	/**
 	 * Get the current collector
@@ -63,21 +80,7 @@ public class Config {
 		this.collector = collector;
 	}
 
-	protected ArrayList<Service> services = new ArrayList<Service>(); // The services configured
-	protected ArrayList<OutputFormat> outputformats = new ArrayList<OutputFormat>(); // The outputs configured
 	
-	protected static final long limitObjectInCacheAge = -1;
-	protected static Config conf;
-
-	public static Config getConfig() {
-		if (conf != null) {
-			return conf;
-		} else {
-			conf = new Config();
-			return conf;
-		}
-	}
-
 	/**
 	 * Obtain the current registered services
 	 * 
@@ -347,7 +350,7 @@ public class Config {
 	 * 
 	 * @param counter The counter value for which to clear stored attribute values
 	 */
-	public synchronized void clearCurrentAttributeValues(long counter) {
+	public void clearCurrentAttributeValues(long counter) {
 		attributeValues.remove(new Long(counter));
 	}
 
@@ -357,9 +360,11 @@ public class Config {
 	 * @param counter The specific counter value for which to obtain attribute values
 	 * @return An HashMap whose key is the unique attribute name and the value the corresponding attribute value
 	 */
-	public synchronized HashMap<String, String> getCurrentAttributeValues4Counter(long counter) {
-		if (!(attributeValues.containsKey(counter))) attributeValues.put(counter, new HashMap<String, String>());
-		return attributeValues.get(counter);
+	public synchronized ConcurrentHashMap<String, String> getCurrentAttributeValues4Counter(long counter) {
+		synchronized (attributeValues) {
+			if (!(attributeValues.containsKey(counter))) attributeValues.put(counter, new ConcurrentHashMap<String, String>());
+			return attributeValues.get(counter);
+		}
 	}
 	
 	/**
@@ -369,8 +374,11 @@ public class Config {
 	 * @param attr The unique attribute identifier
 	 * @param value The attribute value to set
 	 */
-	public synchronized void setCurrentAttributeValues(long counter, String attr, String value) {
-		getCurrentAttributeValues4Counter(counter).put(attr, value);
+	public void setCurrentAttributeValues(long counter, String attr, String value) {
+		ConcurrentHashMap<String, String> chm = getCurrentAttributeValues4Counter(counter);
+		synchronized (chm) {
+			chm.put(attr, value);
+		}
 	}
 	
 	/**
@@ -380,8 +388,26 @@ public class Config {
 	 * @param attr The attribute to check.
 	 * @return True if the attribute exists, false if not.
 	 */
-	public synchronized boolean containsCurrentAttributeValues(long counter, String attr) {
-		return getCurrentAttributeValues4Counter(counter).containsKey(attr);
+	public boolean containsCurrentAttributeValues(long counter, String attr) {
+		ConcurrentHashMap<String, String> chm = getCurrentAttributeValues4Counter(counter);
+		synchronized (chm) {
+			return chm.containsKey(attr);
+		}
+	}
+	
+	/**
+	 * Verifies that an attribute value is equal to a value provided.
+	 * 
+	 * @param counter The counter value for which to check.
+	 * @param attr The attribute to check.
+	 * @param value The value to check against.
+	 * @return True if the attribute exists and is equal to value, false if not.
+	 */
+	public boolean isCurrentAttributeValue(long counter, String attr, String value) {
+		if (value.equals(getCurrentAttributeValues(counter, attr)))
+			return true;
+		else 
+			return false;
 	}
 	
 	/**
@@ -391,7 +417,7 @@ public class Config {
 	 * @param attr The unique attribute for which the stored attribute value for the corresponding counter refers. 
 	 * @return The corresponding attribute value for the specified unique attribute and counter value. 
 	 */
-	public synchronized String getCurrentAttributeValues(long counter, String attr) {
+	public String getCurrentAttributeValues(long counter, String attr) {
 		String r = null;
 		if (!(containsCurrentAttributeValues(counter, attr))) {
 			r = uniqueAttrs.getAttribute(attr).getValue();
@@ -403,4 +429,11 @@ public class Config {
 		return r;
 	}
 
+	public void setParams(String params) {
+		this.params = params;
+	}
+
+	public String getParams() {
+		return params;
+	}
 }
