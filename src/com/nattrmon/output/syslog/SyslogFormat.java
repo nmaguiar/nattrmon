@@ -119,7 +119,7 @@ public class SyslogFormat extends OutputFormat {
 	}
 	
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		ArrayList<String> attrNames = null;
 		
 		if (syslog == null) {
@@ -129,7 +129,7 @@ public class SyslogFormat extends OutputFormat {
 		attrNames = getAttrNames();
 		
 		String suffix = "";
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		for(String attrName :attrNames) {
 			//if (attrNames.indexOf(attrName) == (attrNames.size() - 1)) suffix = ";";
 			
