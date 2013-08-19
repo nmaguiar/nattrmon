@@ -81,7 +81,7 @@ public class SMTPFormat extends OutputFormat {
 	}
 	
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		Attribute triggerAttr = conf.getUniqueAttrs().getAttribute(triggerAttribute);
 		
 		if (emailTemplate.equals("")) 
