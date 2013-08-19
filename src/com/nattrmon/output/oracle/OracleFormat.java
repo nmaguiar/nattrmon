@@ -99,13 +99,13 @@ public class OracleFormat extends OutputFormat {
 	}
 	
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		StringBuffer out = new StringBuffer();
 		StringBuffer outAttr = new StringBuffer();
 		StringBuffer outAttrCreate = new StringBuffer();
 		ArrayList<String> attrNames = null;
 		Connection con;
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		
 		if ((url == null) || (url.equals(""))) {
 			conf.lOG(OutputType.ERROR, "No url specified for Oracle output");
