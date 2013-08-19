@@ -49,12 +49,12 @@ public class LogFormat extends OutputFormat {
 	}
 
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		ArrayList<String> attrNames = null;
 		
 		attrNames = getAttrNames();
 		
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		for(String attrName :attrNames) {			
 			if (conf.containsCurrentAttributeValues(counter, attrName)) {
 				if (!(this.isAttributeValueEqualToLastRun(attrName))) {
