@@ -158,7 +158,7 @@ public class HTTPDFormat extends OutputFormat {
 	}
 
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		
 		if (htmlTemplate.equals("")) 
 			htmlTemplate = ReportUtils.buildTemplate(getAttrNames());
