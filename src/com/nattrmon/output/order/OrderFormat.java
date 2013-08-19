@@ -44,14 +44,14 @@ public class OrderFormat extends OutputFormat {
 	}
 
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		StringBuffer out = new StringBuffer();
 		ArrayList<String> attrNames = null;
 		
 		attrNames = getAttrNames();
 		
 		String suffix = "; ";
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		for(String attrName :attrNames) {
 			if (attrNames.indexOf(attrName) == (attrNames.size() - 1)) suffix = ";";
 			
