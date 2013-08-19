@@ -91,7 +91,7 @@ public class SQLiteFormat extends OutputFormat {
 	}
 	
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		StringBuffer out = new StringBuffer();
 		StringBuffer outAttr = new StringBuffer();
 		ArrayList<String> attrNames = null;
@@ -100,7 +100,7 @@ public class SQLiteFormat extends OutputFormat {
 		attrNames = getAttrNames();
 		
 		String suffix = ", ";
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		for(String attrName :attrNames) {
 			if (attrNames.indexOf(attrName) == (attrNames.size() - 1)) suffix = "";
 			
