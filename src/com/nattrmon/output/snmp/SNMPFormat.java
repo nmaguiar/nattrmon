@@ -82,7 +82,7 @@ public class SNMPFormat extends OutputFormat {
 	}
 	
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		CommunityTarget target = new CommunityTarget();
 		
 		target.setCommunity(new OctetString("public"));
