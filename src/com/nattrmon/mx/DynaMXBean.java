@@ -151,7 +151,7 @@ public class DynaMXBean implements DynamicMBean {
 	public Object invoke(String arg0, Object[] arg1, String[] arg2)
 			throws MBeanException, ReflectionException {
 		// TODO Auto-generated method stub
-		return null;
+		return new java.lang.Object();
 	}
 
 	public void setAttribute(Attribute attr) throws AttributeNotFoundException,
