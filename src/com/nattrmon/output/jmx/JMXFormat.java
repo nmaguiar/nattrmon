@@ -20,6 +20,7 @@ package com.nattrmon.output.jmx;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.management.AttributeNotFoundException;
 import javax.management.MBeanException;
@@ -40,8 +41,8 @@ public class JMXFormat extends OutputFormat {
 	protected DynaMXBean dbean;
 	protected boolean convert = true;
 	protected boolean internal = false;
-	protected HashMap<String, String> retrievedValues = new HashMap<String, String>();
-	protected HashMap<String, String> retrievedTypes = new HashMap<String, String>();
+	protected static ConcurrentHashMap<String, String> retrievedValues = new ConcurrentHashMap<String, String>();
+	protected static ConcurrentHashMap<String, String> retrievedTypes = new ConcurrentHashMap<String, String>();
 	
 	public JMXFormat(Config conf, String params) {
 		super(conf, params);
@@ -138,9 +139,9 @@ public class JMXFormat extends OutputFormat {
 	}
 	
 	@Override
-	public void processOutput() {
+	public void processOutput(long counter) {
 		ArrayList<String> attrNames = null;
-		long counter = conf.getCurrentCounter();
+		//long counter = conf.getCurrentCounter();
 		String value = null;
 		attrNames = getAttrNames();
 		
@@ -151,11 +152,11 @@ public class JMXFormat extends OutputFormat {
 			
 			int i = 0;
 			for (String attr : attrNames) {
-				if (conf.containsCurrentAttributeValues(counter, attr)) {
+				if ((attr != null) && (conf.containsCurrentAttributeValues(counter, attr))) {
 					value = conf.getCurrentAttributeValues(counter, attr);
 					retrievedValues.put(attr, value);
 				} else {
-					retrievedValues.put(attr, null);
+					retrievedValues.put(attr, OutputFormat.NOT_RETRIEVED);
 				}
 				
 				if ((value != null) && (convert = true)) {
@@ -194,11 +195,11 @@ public class JMXFormat extends OutputFormat {
 		} else {
 			
 			for (String attr : attrNames) {
-				if (conf.containsCurrentAttributeValues(counter, attr)) {
+				if ((attr != null) && (conf.containsCurrentAttributeValues(counter, attr))) {
 					value = conf.getCurrentAttributeValues(counter, attr);
 					retrievedValues.put(attr, value);
 				} else {
-					retrievedValues.put(attr, null);
+					retrievedValues.put(attr, OutputFormat.NOT_RETRIEVED);
 				}
 			}
 		}
