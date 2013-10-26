@@ -19,6 +19,7 @@
 package com.nattrmon.config;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -44,6 +45,7 @@ public class Config {
 	protected Output output;
 	protected UniqueAttributes uniqueAttrs = new UniqueAttributes();
 	protected ConcurrentHashMap<Long, ConcurrentHashMap<String, String>> attributeValues = new ConcurrentHashMap<Long, ConcurrentHashMap<String,String>>();
+	protected ConcurrentHashMap<Long, ConcurrentHashMap<String, Date>> attributeValuesDate = new ConcurrentHashMap<Long, ConcurrentHashMap<String,Date>>(); 
 	protected static HashMap<String, String> registeredServices = new HashMap<String, String>();
 	protected static HashMap<String, String> registeredFormats = new HashMap<String, String>();
 	protected SimpleCache cache = new SimpleCache(this);
@@ -352,6 +354,7 @@ public class Config {
 	 */
 	public void clearCurrentAttributeValues(long counter) {
 		attributeValues.remove(new Long(counter));
+		attributeValuesDate.remove(new Long(counter));
 	}
 
 	/**
@@ -368,6 +371,19 @@ public class Config {
 	}
 	
 	/**
+	 * Obtain all the stored attribute values modified date for a specific counter value
+	 * 
+	 * @param counter The specific counter value for which to obtain attribute modified dates
+	 * @return An HashMap whose key is the unique attribute name and the value the corresponding attribute modified date
+	 */
+	public synchronized ConcurrentHashMap<String, Date> getCurrentAttributeDates4Counter(long counter) {
+		synchronized (attributeValues) {
+			if (!(attributeValuesDate.containsKey(counter))) attributeValuesDate.put(counter, new ConcurrentHashMap<String, Date>());
+			return attributeValuesDate.get(counter);
+		}
+	}
+	
+	/**
 	 * Set a specific attribute value for a specific counter value
 	 * 
 	 * @param counter The counter value for which to set attribute values
@@ -375,9 +391,26 @@ public class Config {
 	 * @param value The attribute value to set
 	 */
 	public void setCurrentAttributeValues(long counter, String attr, String value) {
+		ConcurrentHashMap<String, Date> chmDate = getCurrentAttributeDates4Counter(counter);
 		ConcurrentHashMap<String, String> chm = getCurrentAttributeValues4Counter(counter);
+		ConcurrentHashMap<String, String> chmLast = null;
+		ConcurrentHashMap<String, Date> chmDateLast = null;
+		
+		if (counter > 1) {
+			chmLast = getCurrentAttributeValues4Counter(counter-1);
+			chmDateLast = getCurrentAttributeDates4Counter(counter-1);
+		}
+		
 		synchronized (chm) {
 			chm.put(attr, value);
+			if (chmLast != null) {
+				if (!chmLast.get(attr).equals(value))  
+					chmDate.put(attr, new Date());
+				else
+					chmDate.put(attr, chmDateLast.get(attr));
+			} else {
+				chmDate.put(attr, new Date());
+			}
 		}
 	}
 	
@@ -425,6 +458,24 @@ public class Config {
 		}
 		
 		r = getCurrentAttributeValues4Counter(counter).get(attr);
+		
+		return r;
+	}
+	
+	/**
+	 * Obtains the current attribute values modified date  for a specific counter value
+	 * 
+	 * @param counter The counter value for which to obtain the attribute stored value
+	 * @param attr The unique attribute for which the stored attribute value for the corresponding counter refers. 
+	 * @return The corresponding attribute modified date for the specified unique attribute and counter value. 
+	 */
+	public Date getCurrentAttributeDates(long counter, String attr) {
+		Date r = null;
+		if (!(containsCurrentAttributeValues(counter, attr))) {
+			return null;
+		}
+		
+		r = getCurrentAttributeDates4Counter(counter).get(attr);
 		
 		return r;
 	}
