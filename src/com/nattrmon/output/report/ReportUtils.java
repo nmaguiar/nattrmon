@@ -31,10 +31,14 @@ public class ReportUtils {
 
 	public static String preProcess(Config cf, ArrayList<String> attrNames, String text) {
 		String result = text;
+		Date data = null;
 		
 		for(String attrName :attrNames) {			
 			if (cf.containsCurrentAttributeValues(cf.getCurrentCounter(), attrName)) {
 				result = result.replaceAll("\\$"+attrName+"\\$", cf.getCurrentAttributeValues(cf.getCurrentCounter(), attrName));
+				data = cf.getCurrentAttributeDates(cf.getCurrentCounter(), attrName);
+				if (data != null)
+					result = result.replaceAll("\\$__date__"+attrName+"\\$", data.toString());
 			}
 		}
 		
@@ -82,7 +86,7 @@ public class ReportUtils {
 		template.append("<table>");
 		
 		for(String attrName :attrNames) {
-			template.append("<tr><th class=\"e\">" + attrName + "</th><td>$" + attrName + "$</td></tr>");
+			template.append("<tr><th class=\"e\">" + attrName + "</th><td>$" + attrName + "$</td><td>$__date__" + attrName + "$</td></tr>");
 		}
 		
 		template.append("</table><hr>Produced on $__currentTime$</body></html>");
